@@ -132,15 +132,17 @@ fn digit_char(d: u8) -> char {
 /// Format a quantity for display, using the unit registry to find derived names
 /// and best prefixes.
 pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegistry) -> String {
+    let effective_base = q.display_base.unwrap_or(obase);
+
     // If quantity has an explicit unit label, use it
     if let Some(ref label) = q.unit {
         // For affine units: display_val = (SI_val - offset) / scale
         let display_val = (&q.val - &label.offset) / &label.scale;
-        let num_str = format_rational(&display_val, obase, scale);
+        let num_str = format_rational(&display_val, effective_base, scale);
         return format!("{} [{}]", num_str, label.name);
     }
 
-    let num_str = format_rational(&q.val, obase, scale);
+    let num_str = format_rational(&q.val, effective_base, scale);
 
     if q.dim.is_dimensionless() {
         return num_str;

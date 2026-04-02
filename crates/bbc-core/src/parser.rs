@@ -18,12 +18,11 @@ impl Parser {
         // -> at lowest precedence: checked after the full expression
         if matches!(self.peek(), Token::Arrow) {
             self.advance();
-            self.expect(&Token::LBracket)?;
-            let target = self.parse_unit_expr()?;
-            self.expect(&Token::RBracket)?;
+            let (base, target) = self.parse_conversion_target()?;
             expr = Expr::Convert {
                 expr: Box::new(expr),
                 target,
+                base,
             };
         }
 
@@ -226,6 +225,55 @@ impl Parser {
             args.push(self.parse_expr(0)?);
         }
         Ok(args)
+    }
+
+    /// Parse conversion target after `->`: `[unit]`, `16x`, or `16x[unit]`.
+    fn parse_conversion_target(&mut self) -> Result<(Option<u32>, Option<UnitExpr>), Error> {
+        let mut base = None;
+        let mut target = None;
+
+        // Check for base format: Number followed by Ident("x")
+        if let Token::Number(ref n) = self.peek().clone() {
+            let saved = self.pos;
+            let n_val = n.clone();
+            self.advance();
+            if let Token::Ident(ref s) = self.peek().clone() {
+                if s == "x" {
+                    let b: u32 = n_val.parse().map_err(|_| Error::ParseError {
+                        msg: format!("invalid base: {}", n_val),
+                        span: Some(self.peek_span().clone()),
+                    })?;
+                    if !(2..=36).contains(&b) {
+                        return Err(Error::ParseError {
+                            msg: format!("base must be 2-36, got {}", b),
+                            span: Some(self.peek_span().clone()),
+                        });
+                    }
+                    base = Some(b);
+                    self.advance(); // consume "x"
+                } else {
+                    self.pos = saved;
+                }
+            } else {
+                self.pos = saved;
+            }
+        }
+
+        // Check for unit: [unit]
+        if matches!(self.peek(), Token::LBracket) {
+            self.advance();
+            target = Some(self.parse_unit_expr()?);
+            self.expect(&Token::RBracket)?;
+        }
+
+        if base.is_none() && target.is_none() {
+            return Err(Error::ParseError {
+                msg: "expected base format (e.g., 16x) or unit (e.g., [km]) after '->'".to_string(),
+                span: Some(self.peek_span().clone()),
+            });
+        }
+
+        Ok((base, target))
     }
 
     fn try_parse_unit_annotation(&mut self) -> Result<UnitExpr, Error> {

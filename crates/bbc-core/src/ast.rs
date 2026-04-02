@@ -40,8 +40,12 @@ pub enum Expr {
     /// Unit annotation: expr [unit]
     WithUnit { expr: Box<Expr>, unit: UnitExpr },
 
-    /// Unit conversion: expr -> [unit]
-    Convert { expr: Box<Expr>, target: UnitExpr },
+    /// Unit conversion and/or base conversion: expr -> [unit], expr -> 16x, expr -> 16x[unit]
+    Convert {
+        expr: Box<Expr>,
+        target: Option<UnitExpr>,
+        base: Option<u32>,
+    },
 
     /// Variable assignment: x = expr
     Assign { name: String, expr: Box<Expr> },

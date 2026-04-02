@@ -396,3 +396,35 @@ fn latex_trig() {
     let result = eval(r"\sin{0}");
     assert_eq!(result, "0");
 }
+
+// --- Base conversion ---
+
+#[test]
+fn base_conversion_hex() {
+    assert_eq!(eval("255 -> 16x"), "16xFF");
+}
+
+#[test]
+fn base_conversion_binary() {
+    assert_eq!(eval("100 -> 2x"), "2x1100100");
+}
+
+#[test]
+fn base_conversion_with_shift() {
+    assert_eq!(eval("16xFF >> 2 -> 16x"), "16x3F");
+}
+
+#[test]
+fn base_fraction_hex() {
+    assert_eq!(eval("16xFF.8"), "255.5");
+}
+
+#[test]
+fn base_fraction_binary() {
+    assert_eq!(eval("2x1.1"), "1.5");
+}
+
+#[test]
+fn base_fraction_octal() {
+    assert_eq!(eval("8x7.4"), "7.5");
+}

@@ -18,6 +18,8 @@ pub struct Quantity {
     pub dim: DimVec,
     /// Preferred display unit (set by -> conversion or unit annotation).
     pub unit: Option<UnitLabel>,
+    /// Override output base (set by -> 16x).
+    pub display_base: Option<u32>,
 }
 
 impl Quantity {
@@ -26,11 +28,12 @@ impl Quantity {
             val,
             dim: DimVec::DIMENSIONLESS,
             unit: None,
+            display_base: None,
         }
     }
 
     pub fn new(val: Rational, dim: DimVec) -> Self {
-        Quantity { val, dim, unit: None }
+        Quantity { val, dim, unit: None, display_base: None }
     }
 
     pub fn with_unit(val: Rational, dim: DimVec, unit: UnitLabel) -> Self {
@@ -38,6 +41,7 @@ impl Quantity {
             val,
             dim,
             unit: Some(unit),
+            display_base: None,
         }
     }
 

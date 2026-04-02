@@ -251,8 +251,22 @@ fn lex_number(input: &str, start: usize) -> Result<(Token, usize), Error> {
                 while i < bytes.len() && is_base_digit(bytes[i], base) {
                     i += 1;
                 }
-                let digits = input[dstart..i].to_uppercase();
+                let mut digits = input[dstart..i].to_uppercase();
+                // Check for base fraction: 16xFF.8
+                if i < bytes.len() && bytes[i] == b'.'
+                    && i + 1 < bytes.len() && is_base_digit(bytes[i + 1], base)
+                {
+                    digits.push('.');
+                    i += 1; // skip '.'
+                    while i < bytes.len() && is_base_digit(bytes[i], base) {
+                        digits.push(bytes[i].to_ascii_uppercase() as char);
+                        i += 1;
+                    }
+                }
                 for ch in digits.chars() {
+                    if ch == '.' {
+                        continue;
+                    }
                     let d = if ch.is_ascii_digit() {
                         ch as u32 - '0' as u32
                     } else {

@@ -68,9 +68,19 @@ impl Evaluator {
                 self.apply_unit(val, unit)
             }
 
-            Expr::Convert { expr, target } => {
+            Expr::Convert { expr, target, base } => {
                 let val = self.eval(expr, env)?;
-                self.convert_unit(val, target, env)
+                let mut result = if let Some(target) = target {
+                    self.convert_unit(val, target, env)?
+                } else {
+                    val
+                };
+                if let Some(b) = base {
+                    if let Value::Quantity(ref mut q) = result {
+                        q.display_base = Some(*b);
+                    }
+                }
+                Ok(result)
             }
 
             Expr::Assign { name, expr } => {
@@ -156,17 +166,31 @@ impl Evaluator {
     }
 
     fn parse_based_number(&self, digits: &str, base: u32) -> Result<Value, Error> {
-        let mut result = Rational::from(0);
         let base_r = Rational::from(base as i64);
-        for ch in digits.chars() {
-            let d = if ch.is_ascii_digit() {
-                ch as u32 - '0' as u32
-            } else {
-                ch as u32 - 'A' as u32 + 10
-            };
-            result = result * base_r.clone() + Rational::from(d as i64);
+        if let Some(dot_pos) = digits.find('.') {
+            let int_part = &digits[..dot_pos];
+            let frac_part = &digits[dot_pos + 1..];
+            let mut int_val = Rational::from(0);
+            for ch in int_part.chars() {
+                let d = digit_value(ch);
+                int_val = int_val * &base_r + Rational::from(d as i64);
+            }
+            let mut frac_val = Rational::from(0);
+            let mut place = Rational::from(1);
+            for ch in frac_part.chars() {
+                let d = digit_value(ch);
+                place = place * &base_r;
+                frac_val = frac_val + Rational::from_signeds(d as i64, 1) / &place;
+            }
+            Ok(Value::from_rational(int_val + frac_val))
+        } else {
+            let mut result = Rational::from(0);
+            for ch in digits.chars() {
+                let d = digit_value(ch);
+                result = result * base_r.clone() + Rational::from(d as i64);
+            }
+            Ok(Value::from_rational(result))
         }
-        Ok(Value::from_rational(result))
     }
 
     fn eval_unary(&self, op: UnaryOp, val: Value) -> Result<Value, Error> {
@@ -204,7 +228,7 @@ impl Evaluator {
                     });
                 }
                 let unit = merge_unit_labels(&l.unit, &r.unit);
-                Ok(Value::Quantity(Quantity { val: l.val + r.val, dim: l.dim, unit }))
+                Ok(Value::Quantity(Quantity { val: l.val + r.val, dim: l.dim, unit, display_base: None }))
             }
             BinOp::Sub => {
                 let l = require_quantity(left, "subtraction")?;
@@ -217,7 +241,7 @@ impl Evaluator {
                     });
                 }
                 let unit = merge_unit_labels(&l.unit, &r.unit);
-                Ok(Value::Quantity(Quantity { val: l.val - r.val, dim: l.dim, unit }))
+                Ok(Value::Quantity(Quantity { val: l.val - r.val, dim: l.dim, unit, display_base: None }))
             }
             BinOp::Mul => {
                 let l = require_quantity(left, "multiplication")?;
@@ -701,6 +725,14 @@ fn values_equal(a: &Value, b: &Value) -> bool {
         (Value::Bool(a), Value::Bool(b)) => a == b,
         (Value::String(a), Value::String(b)) => a == b,
         _ => false,
+    }
+}
+
+fn digit_value(ch: char) -> u32 {
+    if ch.is_ascii_digit() {
+        ch as u32 - '0' as u32
+    } else {
+        ch as u32 - 'A' as u32 + 10
     }
 }
 
