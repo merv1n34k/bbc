@@ -1,0 +1,28 @@
+[package]
+name = "bbc-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "bbc"
+path = "src/main.rs"
+
+[dependencies]
+bbc-core = { workspace = true }
+bbc-bitwise = { workspace = true, optional = true }
+bbc-linalg = { workspace = true, optional = true }
+bbc-calculus = { workspace = true, optional = true }
+bbc-symbolic = { workspace = true, optional = true }
+rustyline = "17"
+clap = { version = "4", features = ["derive"] }
+ariadne = "0.6"
+atty = "0.2"
+
+[features]
+default = ["bitwise"]
+bitwise = ["dep:bbc-bitwise"]
+linalg = ["dep:bbc-linalg"]
+calculus = ["dep:bbc-calculus"]
+symbolic = ["dep:bbc-symbolic"]
+full = ["bitwise", "linalg", "calculus", "symbolic"]
+minimal = []

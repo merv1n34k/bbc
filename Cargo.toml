@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/bbc-core",
+    "crates/bbc-bitwise",
+    "crates/bbc-linalg",
+    "crates/bbc-calculus",
+    "crates/bbc-symbolic",
+    "crates/bbc-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+bbc-core = { path = "crates/bbc-core" }
+bbc-bitwise = { path = "crates/bbc-bitwise" }
+bbc-linalg = { path = "crates/bbc-linalg" }
+bbc-calculus = { path = "crates/bbc-calculus" }
+bbc-symbolic = { path = "crates/bbc-symbolic" }
+malachite = "0.9"
+malachite-q = "0.9"
+malachite-nz = "0.9"
+malachite-base = "0.9"
