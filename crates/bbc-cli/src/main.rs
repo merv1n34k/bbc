@@ -73,7 +73,7 @@ fn main() {
 
     if let Some(expr) = cli.expr {
         // Single expression mode
-        match bbc_core::evaluate_and_format(&expr, &mut env, &evaluator) {
+        match bbc_core::evaluate_and_format(&expr, &mut env, &mut evaluator) {
             Ok(result) => println!("{}", result),
             Err(e) => {
                 eprintln!("error: {}", e);
@@ -86,10 +86,10 @@ fn main() {
             eprintln!("error reading {}: {}", file, e);
             std::process::exit(1);
         });
-        run_lines(&content, &mut env, &evaluator);
+        run_lines(&content, &mut env, &mut evaluator);
     } else if atty::is(atty::Stream::Stdin) {
         // Interactive REPL
-        if let Err(e) = repl::run_repl(&mut env, &evaluator) {
+        if let Err(e) = repl::run_repl(&mut env, &mut evaluator) {
             eprintln!("error: {}", e);
             std::process::exit(1);
         }
@@ -106,11 +106,11 @@ fn main() {
                 }
             }
         }
-        run_lines(&input, &mut env, &evaluator);
+        run_lines(&input, &mut env, &mut evaluator);
     }
 }
 
-fn run_lines(input: &str, env: &mut Env, evaluator: &Evaluator) {
+fn run_lines(input: &str, env: &mut Env, evaluator: &mut Evaluator) {
     for line in input.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {

@@ -2,4 +2,5 @@
 # Da (dalton) is in scientific.toml -- load both sets for bioinformatics work
 
 [biology]
-bp = { scale = 0.34e-9, dim = [1, 0, 0, 0, 0, 0, 0] }  # base pair (length)
+bp = { scale = 0.34e-9, dim = [1, 0, 0, 0, 0, 0, 0] }      # base pair (length: 0.34 nm rise)
+bp_mass = { scale = 0.66, dim = [0, 1, 0, 0, 0, -1, 0] }    # base pair mass: 660 g/mol = 0.66 kg/mol

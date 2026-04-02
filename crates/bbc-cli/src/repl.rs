@@ -3,7 +3,7 @@ use bbc_core::eval::Evaluator;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 
-pub fn run_repl(env: &mut Env, evaluator: &Evaluator) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_repl(env: &mut Env, evaluator: &mut Evaluator) -> Result<(), Box<dyn std::error::Error>> {
     let mut rl = DefaultEditor::new()?;
 
     let history_path = dirs_home().map(|h| h.join(".bbc_history"));

@@ -52,6 +52,26 @@ pub enum Expr {
 
     /// Constant assignment: const x = expr
     ConstAssign { name: String, expr: Box<Expr> },
+
+    /// units command: units, units imperial, units +sci, units -imp
+    UnitsCmd { action: UnitsCmdAction },
+
+    /// unit command: unit x = expr, unit x, unit -x
+    UnitCmd { action: UnitCmdAction },
+}
+
+#[derive(Debug, Clone)]
+pub enum UnitsCmdAction {
+    List,
+    Load(String),
+    Unload(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum UnitCmdAction {
+    Define { name: String, expr: Box<Expr> },
+    Inspect(String),
+    Remove(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

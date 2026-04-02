@@ -49,6 +49,8 @@ pub enum Token {
 
     // Keywords
     Const,
+    Unit,
+    Units,
 
     // Delimiters
     LParen,
@@ -141,6 +143,8 @@ pub fn lex(input: &str) -> Result<Vec<SpannedToken>, Error> {
                 "true" => Token::Bool(true),
                 "false" => Token::Bool(false),
                 "const" => Token::Const,
+                "unit" => Token::Unit,
+                "units" => Token::Units,
                 _ => Token::Ident(word.to_string()),
             };
             tokens.push(SpannedToken {

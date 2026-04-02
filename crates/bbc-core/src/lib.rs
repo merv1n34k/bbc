@@ -19,7 +19,7 @@ use eval::Evaluator;
 use units::UnitRegistry;
 use value::{Quantity, Value};
 
-pub fn evaluate(input: &str, env: &mut Env, evaluator: &Evaluator) -> Result<Value, Error> {
+pub fn evaluate(input: &str, env: &mut Env, evaluator: &mut Evaluator) -> Result<Value, Error> {
     let processed = if input.contains('\\') {
         latex::preprocess_latex(input)
     } else {
@@ -29,7 +29,7 @@ pub fn evaluate(input: &str, env: &mut Env, evaluator: &Evaluator) -> Result<Val
     evaluator.eval(&expr, env)
 }
 
-pub fn evaluate_and_format(input: &str, env: &mut Env, evaluator: &Evaluator) -> Result<String, Error> {
+pub fn evaluate_and_format(input: &str, env: &mut Env, evaluator: &mut Evaluator) -> Result<String, Error> {
     let val = evaluate(input, env, evaluator)?;
     let scale = env.get_scale();
     if env.strict_mode() {

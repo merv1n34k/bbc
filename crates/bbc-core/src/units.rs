@@ -6,12 +6,21 @@ use crate::dim::DimVec;
 
 include!(concat!(env!("OUT_DIR"), "/unit_sets.rs"));
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnitSource {
+    Si,
+    Common,
+    Set(String),
+    Runtime,
+}
+
 #[derive(Debug, Clone)]
 pub struct UnitDef {
     pub name: String,
     pub dim: DimVec,
     pub scale: f64,
     pub offset: f64,
+    pub source: UnitSource,
 }
 
 pub struct Prefix {
@@ -79,6 +88,7 @@ pub struct ParsedConstant {
 pub struct UnitRegistry {
     units: HashMap<String, Vec<UnitDef>>,
     derived_names: Vec<(DimVec, String)>,
+    loaded_sets: Vec<String>,
 }
 
 impl UnitRegistry {
@@ -86,6 +96,7 @@ impl UnitRegistry {
         let mut reg = UnitRegistry {
             units: HashMap::new(),
             derived_names: Vec::new(),
+            loaded_sets: Vec::new(),
         };
         reg.register_si_base();
         // Load [common] sections from ALL data files
@@ -96,21 +107,22 @@ impl UnitRegistry {
     }
 
     fn register_si_base(&mut self) {
-        self.add("m",   [1, 0, 0, 0, 0, 0, 0], 1.0, 0.0);
-        self.add("g",   [0, 1, 0, 0, 0, 0, 0], 1e-3, 0.0);
-        self.add("s",   [0, 0, 1, 0, 0, 0, 0], 1.0, 0.0);
-        self.add("A",   [0, 0, 0, 1, 0, 0, 0], 1.0, 0.0);
-        self.add("K",   [0, 0, 0, 0, 1, 0, 0], 1.0, 0.0);
-        self.add("mol", [0, 0, 0, 0, 0, 1, 0], 1.0, 0.0);
-        self.add("cd",  [0, 0, 0, 0, 0, 0, 1], 1.0, 0.0);
+        self.add_with_source("m",   [1, 0, 0, 0, 0, 0, 0], 1.0, 0.0, UnitSource::Si);
+        self.add_with_source("g",   [0, 1, 0, 0, 0, 0, 0], 1e-3, 0.0, UnitSource::Si);
+        self.add_with_source("s",   [0, 0, 1, 0, 0, 0, 0], 1.0, 0.0, UnitSource::Si);
+        self.add_with_source("A",   [0, 0, 0, 1, 0, 0, 0], 1.0, 0.0, UnitSource::Si);
+        self.add_with_source("K",   [0, 0, 0, 0, 1, 0, 0], 1.0, 0.0, UnitSource::Si);
+        self.add_with_source("mol", [0, 0, 0, 0, 0, 1, 0], 1.0, 0.0, UnitSource::Si);
+        self.add_with_source("cd",  [0, 0, 0, 0, 0, 0, 1], 1.0, 0.0, UnitSource::Si);
     }
 
-    fn add(&mut self, name: &str, dim: [i8; 7], scale: f64, offset: f64) {
+    fn add_with_source(&mut self, name: &str, dim: [i8; 7], scale: f64, offset: f64, source: UnitSource) {
         let def = UnitDef {
             name: name.to_string(),
             dim: DimVec::new(dim),
             scale,
             offset,
+            source,
         };
         self.units.entry(name.to_string()).or_default().push(def);
     }
@@ -121,19 +133,24 @@ impl UnitRegistry {
             .expect("failed to parse TOML");
         if let Some(toml::Value::Table(common)) = table.get("common") {
             let defs = parse_unit_table(common);
-            self.register_unit_defs(&defs);
+            self.register_unit_defs(&defs, UnitSource::Common);
         }
     }
 
     /// Load a named unit set (e.g., "imperial", "scientific").
     /// Searches all TOML files for a section with that name.
+    /// Idempotent: loading an already-loaded set is a no-op.
     pub fn load_unit_set(&mut self, name: &str) {
+        if self.loaded_sets.iter().any(|s| s == name) {
+            return;
+        }
         for &(_file_name, content) in UNIT_SETS {
             let table: toml::Table = toml::from_str(content)
                 .expect("failed to parse TOML");
             if let Some(toml::Value::Table(section)) = table.get(name) {
                 let defs = parse_unit_table(section);
-                self.register_unit_defs(&defs);
+                self.register_unit_defs(&defs, UnitSource::Set(name.to_string()));
+                self.loaded_sets.push(name.to_string());
                 return;
             }
         }
@@ -141,7 +158,7 @@ impl UnitRegistry {
             name, Self::available_unit_sets());
     }
 
-    fn register_unit_defs(&mut self, defs: &HashMap<String, TomlUnitDef>) {
+    fn register_unit_defs(&mut self, defs: &HashMap<String, TomlUnitDef>, source: UnitSource) {
         for (name, def) in defs {
             let dim_arr = to_dim_array(&def.dim);
             let dv = DimVec::new(dim_arr);
@@ -150,6 +167,7 @@ impl UnitRegistry {
                 dim: dv,
                 scale: def.scale,
                 offset: def.offset,
+                source: source.clone(),
             };
 
             let entries = self.units.entry(name.clone()).or_default();
@@ -272,8 +290,88 @@ impl UnitRegistry {
         ("", val_in_base)
     }
 
+    /// Add or update a runtime unit definition. Idempotent: redefining
+    /// the same name overwrites the previous runtime definition.
     pub fn add_runtime(&mut self, name: &str, dim: [i8; 7], scale: f64, offset: f64) {
-        self.add(name, dim, scale, offset);
+        let dv = DimVec::new(dim);
+        let def = UnitDef {
+            name: name.to_string(),
+            dim: dv,
+            scale,
+            offset,
+            source: UnitSource::Runtime,
+        };
+        let entries = self.units.entry(name.to_string()).or_default();
+        if let Some(existing) = entries.iter_mut().find(|e| e.source == UnitSource::Runtime) {
+            *existing = def;
+        } else {
+            entries.push(def);
+        }
+    }
+
+    /// Unload a named unit set, removing all units that came from it.
+    /// Idempotent: unloading a set that isn't loaded is a no-op.
+    pub fn unload_unit_set(&mut self, name: &str) {
+        self.loaded_sets.retain(|s| s != name);
+        let target = UnitSource::Set(name.to_string());
+        for entries in self.units.values_mut() {
+            entries.retain(|d| d.source != target);
+        }
+        self.units.retain(|_, v| !v.is_empty());
+    }
+
+    /// Remove a runtime unit by name. Returns true if something was removed.
+    /// Idempotent: removing a non-existent unit returns false.
+    pub fn remove_runtime_unit(&mut self, name: &str) -> bool {
+        if let Some(entries) = self.units.get_mut(name) {
+            let before = entries.len();
+            entries.retain(|d| d.source != UnitSource::Runtime);
+            let removed = entries.len() < before;
+            if entries.is_empty() {
+                self.units.remove(name);
+            }
+            removed
+        } else {
+            false
+        }
+    }
+
+    pub fn loaded_sets(&self) -> &[String] {
+        &self.loaded_sets
+    }
+
+    pub fn describe_unit(&self, name: &str) -> Option<String> {
+        if let Some(defs) = self.units.get(name) {
+            if let Some(def) = defs.first() {
+                let source = match &def.source {
+                    UnitSource::Si => "SI base",
+                    UnitSource::Common => "common",
+                    UnitSource::Set(s) => s.as_str(),
+                    UnitSource::Runtime => "runtime",
+                };
+                return Some(format!(
+                    "{}: scale={}, dim={}, source={}",
+                    def.name, def.scale, def.dim, source
+                ));
+            }
+        }
+        // Check with prefix
+        for prefix in PREFIXES {
+            if let Some(base) = name.strip_prefix(prefix.symbol) {
+                if !base.is_empty() {
+                    if let Some(defs) = self.units.get(base) {
+                        if let Some(def) = defs.first() {
+                            let prefix_scale = 10f64.powi(prefix.exponent as i32);
+                            return Some(format!(
+                                "{}: scale={} ({}*{}), dim={}",
+                                name, def.scale * prefix_scale, prefix.symbol, def.name, def.dim
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        None
     }
 
     pub fn get(&self, name: &str) -> Option<&UnitDef> {

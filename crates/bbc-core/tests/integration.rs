@@ -2,29 +2,29 @@ use bbc_core::env::Env;
 use bbc_core::eval::Evaluator;
 
 fn eval(input: &str) -> String {
-    let evaluator = Evaluator::new();
+    let mut evaluator = Evaluator::new();
     let mut env = Env::new();
     bbc_core::register_constants(&mut env);
-    bbc_core::evaluate_and_format(input, &mut env, &evaluator).unwrap()
+    bbc_core::evaluate_and_format(input, &mut env, &mut evaluator).unwrap()
 }
 
 fn eval_err(input: &str) -> String {
-    let evaluator = Evaluator::new();
+    let mut evaluator = Evaluator::new();
     let mut env = Env::new();
     bbc_core::register_constants(&mut env);
-    bbc_core::evaluate_and_format(input, &mut env, &evaluator)
+    bbc_core::evaluate_and_format(input, &mut env, &mut evaluator)
         .unwrap_err()
         .to_string()
 }
 
 fn eval_with_env(inputs: &[&str]) -> Vec<String> {
-    let evaluator = Evaluator::new();
+    let mut evaluator = Evaluator::new();
     let mut env = Env::new();
     bbc_core::register_constants(&mut env);
     inputs
         .iter()
         .map(|input| {
-            bbc_core::evaluate_and_format(input, &mut env, &evaluator)
+            bbc_core::evaluate_and_format(input, &mut env, &mut evaluator)
                 .unwrap_or_else(|e| format!("error: {}", e))
         })
         .collect()
@@ -314,7 +314,7 @@ fn eval_with_units(input: &str, unit_sets: &[&str]) -> String {
     }
     let mut env = Env::new();
     bbc_core::register_constants(&mut env);
-    bbc_core::evaluate_and_format(input, &mut env, &evaluator).unwrap()
+    bbc_core::evaluate_and_format(input, &mut env, &mut evaluator).unwrap()
 }
 
 #[test]
@@ -400,11 +400,11 @@ fn latex_trig() {
 // --- Sigfig mode ---
 
 fn eval_sigfig(input: &str) -> String {
-    let evaluator = Evaluator::new();
+    let mut evaluator = Evaluator::new();
     let mut env = Env::new();
     bbc_core::register_constants(&mut env);
     env.set_sigfig(true);
-    bbc_core::evaluate_and_format(input, &mut env, &evaluator).unwrap()
+    bbc_core::evaluate_and_format(input, &mut env, &mut evaluator).unwrap()
 }
 
 #[test]
@@ -460,11 +460,11 @@ fn base_fraction_octal() {
 // --- Strict SI mode ---
 
 fn eval_strict(input: &str) -> String {
-    let evaluator = Evaluator::new();
+    let mut evaluator = Evaluator::new();
     let mut env = Env::new();
     bbc_core::register_constants(&mut env);
     env.set_strict(true);
-    bbc_core::evaluate_and_format(input, &mut env, &evaluator)
+    bbc_core::evaluate_and_format(input, &mut env, &mut evaluator)
         .unwrap_or_else(|e| format!("error: {}", e))
 }
 
@@ -491,4 +491,98 @@ fn strict_no_conversion() {
 #[test]
 fn strict_decimal_only() {
     assert_eq!(eval_strict("16xFF"), "255");
+}
+
+// --- units command ---
+
+#[test]
+fn units_list() {
+    let result = eval("units");
+    assert!(result.contains("loaded:"));
+    assert!(result.contains("available:"));
+    assert!(result.contains("imperial"));
+}
+
+#[test]
+fn units_load_unload() {
+    let results = eval_with_env(&[
+        "units imperial",
+        "1 [yd] -> [m]",
+        "units -imperial",
+    ]);
+    assert!(results[0].contains("loaded unit set 'imperial'"));
+    assert!(results[1].contains("[m]"));
+    assert!(results[2].contains("unloaded unit set 'imperial'"));
+}
+
+#[test]
+fn units_load_idempotent() {
+    let results = eval_with_env(&[
+        "units imperial",
+        "units imperial",
+        "1 [yd] -> [m]",
+    ]);
+    assert!(results[0].contains("loaded"));
+    assert!(results[1].contains("loaded"));
+    assert!(results[2].contains("[m]"));
+}
+
+// --- unit command ---
+
+#[test]
+fn unit_define_dimensionless() {
+    let results = eval_with_env(&[
+        "unit bread = 1",
+        "4 [bread] / 2",
+    ]);
+    assert!(results[0].contains("defined unit 'bread'"));
+    assert_eq!(results[1], "2");
+}
+
+#[test]
+fn unit_define_with_dim() {
+    let results = eval_with_env(&[
+        "unit furlong = 201.168 [m]",
+        "1 [furlong] -> [m]",
+    ]);
+    assert!(results[0].contains("defined unit 'furlong'"));
+    assert!(results[1].contains("201.168"));
+    assert!(results[1].contains("[m]"));
+}
+
+#[test]
+fn unit_inspect() {
+    let results = eval_with_env(&[
+        "unit furlong = 201.168 [m]",
+        "unit furlong",
+    ]);
+    assert!(results[1].contains("furlong"));
+    assert!(results[1].contains("201.168"));
+    assert!(results[1].contains("runtime"));
+}
+
+#[test]
+fn unit_remove() {
+    let results = eval_with_env(&[
+        "unit furlong = 201.168 [m]",
+        "1 [furlong] -> [m]",
+        "unit -furlong",
+        "1 [furlong] -> [m]",
+    ]);
+    assert!(results[1].contains("201.168"));
+    assert!(results[2].contains("removed unit 'furlong'"));
+    assert!(results[3].contains("error:"));
+}
+
+#[test]
+fn unit_define_idempotent() {
+    let results = eval_with_env(&[
+        "unit bread = 1",
+        "unit bread = 2",
+        "1 [bread] -> [bread]",
+    ]);
+    assert!(results[0].contains("defined"));
+    assert!(results[1].contains("defined"));
+    // After redefining bread=2, 1 [bread] = 2 SI, displayed as 1 [bread]
+    assert!(results[2].contains("[bread]"));
 }

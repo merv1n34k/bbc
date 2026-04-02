@@ -20,7 +20,7 @@ impl Evaluator {
         }
     }
 
-    pub fn eval(&self, expr: &Expr, env: &mut Env) -> Result<Value, Error> {
+    pub fn eval(&mut self, expr: &Expr, env: &mut Env) -> Result<Value, Error> {
         match expr {
             Expr::Number { value, base } => self.eval_number(value, *base, env.sigfig_mode()),
 
@@ -105,6 +105,80 @@ impl Evaluator {
                 let val = self.eval(expr, env)?;
                 env.set_constant(name.clone(), val.clone());
                 Ok(val)
+            }
+
+            Expr::UnitsCmd { action } => {
+                use crate::ast::UnitsCmdAction;
+                match action {
+                    UnitsCmdAction::List => {
+                        let loaded = self.registry.loaded_sets();
+                        let available = UnitRegistry::available_unit_sets();
+                        let mut out = String::from("loaded:");
+                        if loaded.is_empty() {
+                            out.push_str(" (none)");
+                        } else {
+                            for s in loaded {
+                                out.push(' ');
+                                out.push_str(s);
+                            }
+                        }
+                        out.push_str("\navailable:");
+                        for s in &available {
+                            if !loaded.contains(s) {
+                                out.push(' ');
+                                out.push_str(s);
+                            }
+                        }
+                        Ok(Value::String(out))
+                    }
+                    UnitsCmdAction::Load(name) => {
+                        self.registry.load_unit_set(name);
+                        Ok(Value::String(format!("loaded unit set '{}'", name)))
+                    }
+                    UnitsCmdAction::Unload(name) => {
+                        self.registry.unload_unit_set(name);
+                        Ok(Value::String(format!("unloaded unit set '{}'", name)))
+                    }
+                }
+            }
+
+            Expr::UnitCmd { action } => {
+                use crate::ast::UnitCmdAction;
+                match action {
+                    UnitCmdAction::Define { name, expr } => {
+                        let val = self.eval(expr, env)?;
+                        let q = val.into_quantity().ok_or_else(|| Error::TypeError {
+                            msg: "unit definition requires a numeric value".to_string(),
+                            span: None,
+                        })?;
+                        let dim = q.dim.to_array();
+                        let (scale_f64, _) = f64::rounding_from(
+                            &q.val,
+                            RoundingMode::Nearest,
+                        );
+                        self.registry.add_runtime(name, dim, scale_f64, 0.0);
+                        Ok(Value::String(format!("defined unit '{}'", name)))
+                    }
+                    UnitCmdAction::Inspect(name) => {
+                        match self.registry.describe_unit(name) {
+                            Some(desc) => Ok(Value::String(desc)),
+                            None => Err(Error::UnknownUnit {
+                                name: name.clone(),
+                                span: None,
+                            }),
+                        }
+                    }
+                    UnitCmdAction::Remove(name) => {
+                        if self.registry.remove_runtime_unit(name) {
+                            Ok(Value::String(format!("removed unit '{}'", name)))
+                        } else {
+                            Err(Error::UnknownUnit {
+                                name: name.clone(),
+                                span: None,
+                            })
+                        }
+                    }
+                }
             }
         }
     }

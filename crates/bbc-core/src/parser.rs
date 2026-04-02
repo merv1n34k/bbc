@@ -142,6 +142,16 @@ impl Parser {
 
     fn parse_primary(&mut self) -> Result<Expr, Error> {
         match self.peek().clone() {
+            Token::Units => {
+                self.advance();
+                let action = self.parse_units_action()?;
+                Ok(Expr::UnitsCmd { action })
+            }
+            Token::Unit => {
+                self.advance();
+                let action = self.parse_unit_action()?;
+                Ok(Expr::UnitCmd { action })
+            }
             Token::Const => {
                 self.advance();
                 if let Token::Ident(name) = self.peek().clone() {
@@ -212,6 +222,76 @@ impl Parser {
                 span: Some(self.peek_span().clone()),
             }),
         }
+    }
+
+    fn parse_units_action(&mut self) -> Result<UnitsCmdAction, Error> {
+        if self.at_eof() {
+            return Ok(UnitsCmdAction::List);
+        }
+        // units -name -> Unload
+        if matches!(self.peek(), Token::Minus) {
+            self.advance();
+            if let Token::Ident(name) = self.peek().clone() {
+                self.advance();
+                return Ok(UnitsCmdAction::Unload(name));
+            }
+            return Err(Error::ParseError {
+                msg: "expected set name after '-'".to_string(),
+                span: Some(self.peek_span().clone()),
+            });
+        }
+        // units +name -> Load
+        if matches!(self.peek(), Token::Plus) {
+            self.advance();
+            if let Token::Ident(name) = self.peek().clone() {
+                self.advance();
+                return Ok(UnitsCmdAction::Load(name));
+            }
+            return Err(Error::ParseError {
+                msg: "expected set name after '+'".to_string(),
+                span: Some(self.peek_span().clone()),
+            });
+        }
+        // units name -> Load
+        if let Token::Ident(name) = self.peek().clone() {
+            self.advance();
+            return Ok(UnitsCmdAction::Load(name));
+        }
+        Ok(UnitsCmdAction::List)
+    }
+
+    fn parse_unit_action(&mut self) -> Result<UnitCmdAction, Error> {
+        // unit -name -> Remove
+        if matches!(self.peek(), Token::Minus) {
+            self.advance();
+            if let Token::Ident(name) = self.peek().clone() {
+                self.advance();
+                return Ok(UnitCmdAction::Remove(name));
+            }
+            return Err(Error::ParseError {
+                msg: "expected unit name after '-'".to_string(),
+                span: Some(self.peek_span().clone()),
+            });
+        }
+        // unit name ...
+        if let Token::Ident(name) = self.peek().clone() {
+            self.advance();
+            // unit name = expr -> Define
+            if matches!(self.peek(), Token::Eq) {
+                self.advance();
+                let expr = self.parse_expr(0)?;
+                return Ok(UnitCmdAction::Define {
+                    name,
+                    expr: Box::new(expr),
+                });
+            }
+            // unit name -> Inspect
+            return Ok(UnitCmdAction::Inspect(name));
+        }
+        Err(Error::ParseError {
+            msg: "expected unit name after 'unit'".to_string(),
+            span: Some(self.peek_span().clone()),
+        })
     }
 
     fn parse_args(&mut self) -> Result<Vec<Expr>, Error> {
