@@ -281,6 +281,13 @@ fn arrow_lowest_precedence() {
     assert!(result.contains("1700"));
 }
 
+#[test]
+fn arrow_with_complex_expr() {
+    let result = eval("250 [uL/min] / (50 [um] * 125 [um]) -> [mm/s]");
+    assert!(result.contains("[mm*s^-1]"));
+    assert!(result.starts_with("666.6"));
+}
+
 // --- Common TOML units ---
 
 #[test]
