@@ -1,6 +1,6 @@
 # Scientific / physics units
 
-[units]
+[scientific]
 # Energy
 eV       = { scale = 1.602176634e-19,     dim = [2, 1, -2, 0, 0, 0, 0] }
 erg      = { scale = 1e-7,                dim = [2, 1, -2, 0, 0, 0, 0] }

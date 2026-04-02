@@ -1,7 +1,7 @@
 # Imperial / US customary units
 # Common ones (ft, in, mi, lb, oz, gal, mph) are in common.toml
 
-[units]
+[imperial]
 yd      = { scale = 0.9144,          dim = [1, 0, 0, 0, 0, 0, 0] }
 nmi     = { scale = 1852.0,          dim = [1, 0, 0, 0, 0, 0, 0] }
 fathom  = { scale = 1.8288,          dim = [1, 0, 0, 0, 0, 0, 0] }

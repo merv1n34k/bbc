@@ -1,5 +1,5 @@
 # Biology / bioinformatics units
 # Da (dalton) is in scientific.toml -- load both sets for bioinformatics work
 
-[units]
+[biology]
 bp = { scale = 0.34e-9, dim = [1, 0, 0, 0, 0, 0, 0] }  # base pair (length)

@@ -1,7 +1,7 @@
 # Engineering units
 # psi, hp are in imperial.toml
 
-[units]
+[engineering]
 # Pressure
 ksi      = { scale = 6894757.293168,      dim = [-1, 1, -2, 0, 0, 0, 0] }
 

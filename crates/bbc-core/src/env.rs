@@ -1,10 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+use crate::error::Error;
 use crate::module::Module;
 use crate::value::Value;
 
 pub struct Env {
     variables: HashMap<String, Value>,
+    immutable: HashSet<String>,
     modules: Vec<Box<dyn Module>>,
 }
 
@@ -12,6 +14,7 @@ impl Env {
     pub fn new() -> Self {
         let mut env = Env {
             variables: HashMap::new(),
+            immutable: HashSet::new(),
             modules: Vec::new(),
         };
         // Default settings
@@ -26,15 +29,32 @@ impl Env {
         self.variables.get(name)
     }
 
-    pub fn set_var(&mut self, name: String, val: Value) {
+    pub fn set_var(&mut self, name: String, val: Value) -> Result<(), Error> {
+        if self.immutable.contains(&name) {
+            return Err(Error::TypeError {
+                msg: format!("cannot reassign constant '{}'", name),
+                span: None,
+            });
+        }
         self.variables.insert(name, val);
+        Ok(())
+    }
+
+    /// Register an immutable constant. Cannot be reassigned.
+    pub fn set_constant(&mut self, name: String, val: Value) {
+        self.variables.insert(name.clone(), val);
+        self.immutable.insert(name);
+    }
+
+    pub fn is_constant(&self, name: &str) -> bool {
+        self.immutable.contains(name)
     }
 
     pub fn register_module(&mut self, module: Box<dyn Module>) {
         self.modules.push(module);
     }
 
-    pub fn call_module_fn(&self, name: &str, args: &[Value]) -> Option<Result<Value, crate::error::Error>> {
+    pub fn call_module_fn(&self, name: &str, args: &[Value]) -> Option<Result<Value, Error>> {
         for module in &self.modules {
             for sig in module.functions() {
                 if sig.name == name {

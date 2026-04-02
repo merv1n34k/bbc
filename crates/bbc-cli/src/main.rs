@@ -35,6 +35,9 @@ fn main() {
     let mut evaluator = Evaluator::new();
     let mut env = Env::new();
 
+    // Register constants from TOML data files
+    bbc_core::register_constants(&mut env);
+
     // Load additional unit sets
     for set_name in &cli.units {
         evaluator.registry.load_unit_set(set_name);
@@ -42,10 +45,10 @@ fn main() {
 
     // Apply CLI settings
     if cli.obase != 10 {
-        env.set_var("obase".into(), bbc_core::value::Value::from_int(cli.obase as i64));
+        let _ = env.set_var("obase".into(), bbc_core::value::Value::from_int(cli.obase as i64));
     }
     if cli.scale != 20 {
-        env.set_var("scale".into(), bbc_core::value::Value::from_int(cli.scale as i64));
+        let _ = env.set_var("scale".into(), bbc_core::value::Value::from_int(cli.scale as i64));
     }
 
     // Register modules

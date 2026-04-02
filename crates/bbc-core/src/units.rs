@@ -6,9 +6,6 @@ use crate::dim::DimVec;
 
 include!(concat!(env!("OUT_DIR"), "/unit_sets.rs"));
 
-/// Names of unit sets always loaded (SI derived + common non-SI).
-const DEFAULT_SETS: &[&str] = &["derived", "common"];
-
 #[derive(Debug, Clone)]
 pub struct UnitDef {
     pub name: String,
@@ -58,24 +55,29 @@ pub const DISPLAY_PREFIXES: &[(&str, i8)] = &[
 // -- TOML deserialization types --
 
 #[derive(Deserialize)]
-struct TomlUnitFile {
-    #[serde(default)]
-    units: HashMap<String, TomlUnitDef>,
-    #[serde(default)]
-    derived: HashMap<String, Vec<i8>>,
-}
-
-#[derive(Deserialize)]
 struct TomlUnitDef {
     scale: f64,
     dim: Vec<i8>,
     #[serde(default)]
     offset: f64,
+    #[serde(default)]
+    alias: bool,
+}
+
+#[derive(Deserialize)]
+struct TomlConstantDef {
+    value: f64,
+    dim: Vec<i8>,
+}
+
+pub struct ParsedConstant {
+    pub name: String,
+    pub value: f64,
+    pub dim: DimVec,
 }
 
 pub struct UnitRegistry {
     units: HashMap<String, Vec<UnitDef>>,
-    /// Reverse lookup: DimVec -> best display name
     derived_names: Vec<(DimVec, String)>,
 }
 
@@ -86,8 +88,9 @@ impl UnitRegistry {
             derived_names: Vec::new(),
         };
         reg.register_si_base();
-        for name in DEFAULT_SETS {
-            reg.load_unit_set(name);
+        // Load [common] sections from ALL data files
+        for &(_name, content) in UNIT_SETS {
+            reg.load_common(content);
         }
         reg
     }
@@ -112,12 +115,34 @@ impl UnitRegistry {
         self.units.entry(name.to_string()).or_default().push(def);
     }
 
-    /// Load units from a TOML string.
-    pub fn load_toml(&mut self, content: &str) {
-        let file: TomlUnitFile = toml::from_str(content)
-            .expect("failed to parse unit TOML");
+    /// Load [common] section from a TOML file (always loaded).
+    fn load_common(&mut self, content: &str) {
+        let table: toml::Table = toml::from_str(content)
+            .expect("failed to parse TOML");
+        if let Some(toml::Value::Table(common)) = table.get("common") {
+            let defs = parse_unit_table(common);
+            self.register_unit_defs(&defs);
+        }
+    }
 
-        for (name, def) in &file.units {
+    /// Load a named unit set (e.g., "imperial", "scientific").
+    /// Searches all TOML files for a section with that name.
+    pub fn load_unit_set(&mut self, name: &str) {
+        for &(_file_name, content) in UNIT_SETS {
+            let table: toml::Table = toml::from_str(content)
+                .expect("failed to parse TOML");
+            if let Some(toml::Value::Table(section)) = table.get(name) {
+                let defs = parse_unit_table(section);
+                self.register_unit_defs(&defs);
+                return;
+            }
+        }
+        eprintln!("warning: unknown unit set '{}', available: {:?}",
+            name, Self::available_unit_sets());
+    }
+
+    fn register_unit_defs(&mut self, defs: &HashMap<String, TomlUnitDef>) {
+        for (name, def) in defs {
             let dim_arr = to_dim_array(&def.dim);
             let dv = DimVec::new(dim_arr);
             let unit_def = UnitDef {
@@ -134,36 +159,51 @@ impl UnitRegistry {
             } else {
                 entries.push(unit_def);
             }
-        }
 
-        for (name, dim_arr) in &file.derived {
-            let dv = DimVec::new(to_dim_array(dim_arr));
-            if !self.derived_names.iter().any(|(d, _)| *d == dv) {
+            if def.alias && !self.derived_names.iter().any(|(d, _)| *d == dv) {
                 self.derived_names.push((dv, name.clone()));
             }
         }
     }
 
-    /// Load a named unit set from embedded TOML data.
-    pub fn load_unit_set(&mut self, name: &str) {
-        for &(set_name, content) in UNIT_SETS {
-            if set_name == name {
-                self.load_toml(content);
-                return;
+    /// Load [constants] from all embedded TOML files.
+    pub fn load_constants() -> Vec<ParsedConstant> {
+        let mut result = Vec::new();
+        for &(_name, content) in UNIT_SETS {
+            let table: toml::Table = toml::from_str(content)
+                .expect("failed to parse TOML");
+            if let Some(toml::Value::Table(constants)) = table.get("constants") {
+                for (name, value) in constants {
+                    let def: TomlConstantDef = value.clone().try_into()
+                        .unwrap_or_else(|e| panic!("bad constant '{}': {}", name, e));
+                    result.push(ParsedConstant {
+                        name: name.clone(),
+                        value: def.value,
+                        dim: DimVec::new(to_dim_array(&def.dim)),
+                    });
+                }
             }
         }
-        eprintln!("warning: unknown unit set '{}', available: {:?}",
-            name, Self::available_unit_sets());
+        result
     }
 
-    /// Returns all available unit set names (derived from data/*.toml filenames).
-    pub fn available_unit_sets() -> Vec<&'static str> {
-        UNIT_SETS.iter().map(|&(name, _)| name).collect()
+    /// Returns available unit set names (sections that are not "common" or "constants").
+    pub fn available_unit_sets() -> Vec<String> {
+        let mut sets = Vec::new();
+        for &(_file_name, content) in UNIT_SETS {
+            let table: toml::Table = toml::from_str(content)
+                .expect("failed to parse TOML");
+            for (key, value) in &table {
+                if key != "common" && key != "constants"
+                    && value.is_table() && !sets.contains(key)
+                {
+                    sets.push(key.clone());
+                }
+            }
+        }
+        sets
     }
 
-    /// Resolve a unit string like "km", "mV", "N", "degC".
-    /// Returns (DimVec, total_scale_to_SI, offset).
-    /// For units with multiple definitions (dimensional overload), returns the first.
     pub fn resolve(&self, unit_str: &str) -> Option<(DimVec, f64, f64)> {
         if let Some(defs) = self.units.get(unit_str) {
             if let Some(def) = defs.first() {
@@ -187,7 +227,6 @@ impl UnitRegistry {
         None
     }
 
-    /// Resolve with dimensional overloads. Returns all matching definitions.
     pub fn resolve_all(&self, unit_str: &str) -> Vec<(DimVec, f64, f64)> {
         if let Some(defs) = self.units.get(unit_str) {
             return defs.iter().map(|d| (d.dim, d.scale, d.offset)).collect();
@@ -209,7 +248,6 @@ impl UnitRegistry {
         Vec::new()
     }
 
-    /// Find the best derived unit name for a dimension vector.
     pub fn find_derived_name(&self, dim: DimVec) -> Option<&str> {
         for (d, name) in &self.derived_names {
             if *d == dim {
@@ -219,7 +257,6 @@ impl UnitRegistry {
         None
     }
 
-    /// Select the best prefix to display a value in a given unit.
     pub fn best_prefix(val_in_base: f64) -> (&'static str, f64) {
         let abs = val_in_base.abs();
         if abs == 0.0 {
@@ -228,14 +265,13 @@ impl UnitRegistry {
         for &(sym, exp) in DISPLAY_PREFIXES {
             let scale = 10f64.powi(exp as i32);
             let scaled = abs / scale;
-            if scaled >= 1.0 && scaled < 1000.0 {
+            if (1.0..1000.0).contains(&scaled) {
                 return (sym, val_in_base / scale);
             }
         }
         ("", val_in_base)
     }
 
-    /// Register a single unit at runtime (e.g., from `unit bread = 1`).
     pub fn add_runtime(&mut self, name: &str, dim: [i8; 7], scale: f64, offset: f64) {
         self.add(name, dim, scale, offset);
     }
@@ -243,6 +279,16 @@ impl UnitRegistry {
     pub fn get(&self, name: &str) -> Option<&UnitDef> {
         self.units.get(name).and_then(|v| v.first())
     }
+}
+
+fn parse_unit_table(table: &toml::map::Map<String, toml::Value>) -> HashMap<String, TomlUnitDef> {
+    table.iter()
+        .map(|(k, v)| {
+            let def: TomlUnitDef = v.clone().try_into()
+                .unwrap_or_else(|e| panic!("bad unit def '{}': {}", k, e));
+            (k.clone(), def)
+        })
+        .collect()
 }
 
 fn to_dim_array(v: &[i8]) -> [i8; 7] {

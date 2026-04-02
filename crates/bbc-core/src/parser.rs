@@ -143,6 +143,22 @@ impl Parser {
 
     fn parse_primary(&mut self) -> Result<Expr, Error> {
         match self.peek().clone() {
+            Token::Const => {
+                self.advance();
+                if let Token::Ident(name) = self.peek().clone() {
+                    self.advance();
+                    self.expect(&Token::Eq)?;
+                    let expr = self.parse_expr(0)?;
+                    return Ok(Expr::ConstAssign {
+                        name,
+                        expr: Box::new(expr),
+                    });
+                }
+                Err(Error::ParseError {
+                    msg: "expected identifier after 'const'".to_string(),
+                    span: Some(self.peek_span().clone()),
+                })
+            }
             Token::Number(s) => {
                 self.advance();
                 Ok(Expr::Number {

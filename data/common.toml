@@ -1,6 +1,6 @@
-# Common non-SI units -- loaded by default
+# Common non-SI units
 
-[units]
+[common]
 # Time
 min  = { scale = 60.0,      dim = [0, 0, 1, 0, 0, 0, 0] }
 hr   = { scale = 3600.0,    dim = [0, 0, 1, 0, 0, 0, 0] }
@@ -23,7 +23,7 @@ atm  = { scale = 101325.0,  dim = [-1, 1, -2, 0, 0, 0, 0] }
 cal  = { scale = 4.184,     dim = [2, 1, -2, 0, 0, 0, 0] }
 Cal  = { scale = 4184.0,    dim = [2, 1, -2, 0, 0, 0, 0] }  # kcal
 
-# Common imperial (also in imperial.toml for completeness)
+# Common imperial
 ft   = { scale = 0.3048,          dim = [1, 0, 0, 0, 0, 0, 0] }
 in   = { scale = 0.0254,          dim = [1, 0, 0, 0, 0, 0, 0] }
 mi   = { scale = 1609.344,        dim = [1, 0, 0, 0, 0, 0, 0] }

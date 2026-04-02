@@ -45,6 +45,9 @@ pub enum Expr {
 
     /// Variable assignment: x = expr
     Assign { name: String, expr: Box<Expr> },
+
+    /// Constant assignment: const x = expr
+    ConstAssign { name: String, expr: Box<Expr> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

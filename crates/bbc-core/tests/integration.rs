@@ -4,12 +4,14 @@ use bbc_core::eval::Evaluator;
 fn eval(input: &str) -> String {
     let evaluator = Evaluator::new();
     let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
     bbc_core::evaluate_and_format(input, &mut env, &evaluator).unwrap()
 }
 
 fn eval_err(input: &str) -> String {
     let evaluator = Evaluator::new();
     let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
     bbc_core::evaluate_and_format(input, &mut env, &evaluator)
         .unwrap_err()
         .to_string()
@@ -18,6 +20,7 @@ fn eval_err(input: &str) -> String {
 fn eval_with_env(inputs: &[&str]) -> Vec<String> {
     let evaluator = Evaluator::new();
     let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
     inputs
         .iter()
         .map(|input| {
@@ -303,6 +306,7 @@ fn eval_with_units(input: &str, unit_sets: &[&str]) -> String {
         evaluator.registry.load_unit_set(set);
     }
     let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
     bbc_core::evaluate_and_format(input, &mut env, &evaluator).unwrap()
 }
 
@@ -319,4 +323,40 @@ fn scientific_unit_set() {
     assert!(result.contains("[J]"));
     // 1.602e-19 displays as 0.00000000000000000016 at scale=20
     assert!(result.contains("0.00000000000000000016"));
+}
+
+// --- Physical constants ---
+
+#[test]
+fn speed_of_light() {
+    let result = eval("c");
+    assert!(result.contains("299792458"));
+    assert!(result.contains("[m*s^-1]"));
+}
+
+#[test]
+fn constant_immutable() {
+    let results = eval_with_env(&["pi", "pi = 5"]);
+    assert!(results[0].starts_with("3.14159265358979"));
+    assert!(results[1].contains("cannot reassign constant"));
+}
+
+#[test]
+fn user_const() {
+    let results = eval_with_env(&["const x = 42", "x", "x = 5"]);
+    assert_eq!(results[0], "42");
+    assert_eq!(results[1], "42");
+    assert!(results[2].contains("cannot reassign constant"));
+}
+
+#[test]
+fn planck_constant() {
+    let result = eval("h");
+    assert!(result.contains("[m^2*kg*s^-1]"));
+}
+
+#[test]
+fn avogadro_constant() {
+    let result = eval("N_A");
+    assert!(result.contains("[mol^-1]"));
 }

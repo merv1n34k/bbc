@@ -3,7 +3,7 @@
 # This set is a convenience alias that loads imperial volume units.
 # Add cooking-specific units here that don't belong elsewhere.
 
-[units]
+[kitchen]
 # pinch is roughly 1/16 tsp
 pinch = { scale = 3.080576e-7, dim = [3, 0, 0, 0, 0, 0, 0] }
 # dash is roughly 1/8 tsp

@@ -29,10 +29,6 @@ impl Evaluator {
             Expr::StringLit(s) => Ok(Value::String(s.clone())),
 
             Expr::Ident(name) => {
-                // Check built-in constants first
-                if let Some(val) = self.builtin_constant(name) {
-                    return Ok(val);
-                }
                 env.get_var(name)
                     .cloned()
                     .ok_or_else(|| Error::UnknownVariable {
@@ -79,7 +75,19 @@ impl Evaluator {
 
             Expr::Assign { name, expr } => {
                 let val = self.eval(expr, env)?;
-                env.set_var(name.clone(), val.clone());
+                env.set_var(name.clone(), val.clone())?;
+                Ok(val)
+            }
+
+            Expr::ConstAssign { name, expr } => {
+                if env.get_var(name).is_some() {
+                    return Err(Error::TypeError {
+                        msg: format!("'{}' is already defined", name),
+                        span: None,
+                    });
+                }
+                let val = self.eval(expr, env)?;
+                env.set_constant(name.clone(), val.clone());
                 Ok(val)
             }
         }
@@ -437,21 +445,6 @@ impl Evaluator {
         }
 
         Ok((combined_dim, combined_scale, combined_offset))
-    }
-
-    fn builtin_constant(&self, name: &str) -> Option<Value> {
-        match name {
-            "pi" => Some(Value::from_rational(
-                Rational::try_from(std::f64::consts::PI).unwrap(),
-            )),
-            "e" => Some(Value::from_rational(
-                Rational::try_from(std::f64::consts::E).unwrap(),
-            )),
-            "tau" => Some(Value::from_rational(
-                Rational::try_from(std::f64::consts::TAU).unwrap(),
-            )),
-            _ => None,
-        }
     }
 
     fn call_builtin(&self, name: &str, args: &[Value]) -> Result<Value, Error> {

@@ -10,10 +10,13 @@ pub mod parser;
 pub mod units;
 pub mod value;
 
+use malachite::Rational;
+
 use env::Env;
 use error::Error;
 use eval::Evaluator;
-use value::Value;
+use units::UnitRegistry;
+use value::{Quantity, Value};
 
 pub fn evaluate(input: &str, env: &mut Env, evaluator: &Evaluator) -> Result<Value, Error> {
     let expr = parser::parse(input)?;
@@ -25,4 +28,14 @@ pub fn evaluate_and_format(input: &str, env: &mut Env, evaluator: &Evaluator) ->
     let obase = env.get_obase();
     let scale = env.get_scale();
     Ok(format::format_value(&val, obase, scale, &evaluator.registry))
+}
+
+/// Load all constants from TOML data files and register them as immutable in Env.
+pub fn register_constants(env: &mut Env) {
+    for c in UnitRegistry::load_constants() {
+        let val = Rational::try_from(c.value)
+            .unwrap_or_else(|_| Rational::from(c.value as i64));
+        let quantity = Value::Quantity(Quantity::new(val, c.dim));
+        env.set_constant(c.name, quantity);
+    }
 }

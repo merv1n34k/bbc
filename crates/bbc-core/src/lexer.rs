@@ -47,6 +47,9 @@ pub enum Token {
     Eq,
     Arrow, // ->
 
+    // Keywords
+    Const,
+
     // Delimiters
     LParen,
     RParen,
@@ -137,6 +140,7 @@ pub fn lex(input: &str) -> Result<Vec<SpannedToken>, Error> {
             let token = match word {
                 "true" => Token::Bool(true),
                 "false" => Token::Bool(false),
+                "const" => Token::Const,
                 _ => Token::Ident(word.to_string()),
             };
             tokens.push(SpannedToken {
