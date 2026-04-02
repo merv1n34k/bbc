@@ -8,8 +8,6 @@ pub struct Env {
     variables: HashMap<String, Value>,
     immutable: HashSet<String>,
     modules: Vec<Box<dyn Module>>,
-    sigfig: bool,
-    strict: bool,
 }
 
 impl Env {
@@ -18,14 +16,15 @@ impl Env {
             variables: HashMap::new(),
             immutable: HashSet::new(),
             modules: Vec::new(),
-            sigfig: false,
-            strict: false,
         };
-        // Default settings
         env.variables
             .insert("scale".into(), Value::from_int(20));
         env.variables
             .insert("obase".into(), Value::from_int(10));
+        env.variables
+            .insert("sigfig".into(), Value::Bool(false));
+        env.variables
+            .insert("strict".into(), Value::Bool(false));
         env
     }
 
@@ -82,19 +81,19 @@ impl Env {
     }
 
     pub fn sigfig_mode(&self) -> bool {
-        self.sigfig
+        matches!(self.variables.get("sigfig"), Some(Value::Bool(true)))
     }
 
     pub fn set_sigfig(&mut self, on: bool) {
-        self.sigfig = on;
+        self.variables.insert("sigfig".into(), Value::Bool(on));
     }
 
     pub fn strict_mode(&self) -> bool {
-        self.strict
+        matches!(self.variables.get("strict"), Some(Value::Bool(true)))
     }
 
     pub fn set_strict(&mut self, on: bool) {
-        self.strict = on;
+        self.variables.insert("strict".into(), Value::Bool(on));
     }
 
     pub fn get_obase(&self) -> u32 {
