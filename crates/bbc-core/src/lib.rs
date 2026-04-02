@@ -4,6 +4,7 @@ pub mod env;
 pub mod error;
 pub mod eval;
 pub mod format;
+pub mod latex;
 pub mod lexer;
 pub mod module;
 pub mod parser;
@@ -19,7 +20,12 @@ use units::UnitRegistry;
 use value::{Quantity, Value};
 
 pub fn evaluate(input: &str, env: &mut Env, evaluator: &Evaluator) -> Result<Value, Error> {
-    let expr = parser::parse(input)?;
+    let processed = if input.contains('\\') {
+        latex::preprocess_latex(input)
+    } else {
+        input.to_string()
+    };
+    let expr = parser::parse(&processed)?;
     evaluator.eval(&expr, env)
 }
 

@@ -360,3 +360,32 @@ fn avogadro_constant() {
     let result = eval("N_A");
     assert!(result.contains("[mol^-1]"));
 }
+
+// --- LaTeX input ---
+
+#[test]
+fn latex_frac() {
+    assert_eq!(eval(r"\frac{1}{3} + \frac{1}{6}"), "0.5");
+}
+
+#[test]
+fn latex_sqrt() {
+    assert_eq!(eval(r"\sqrt{144}"), "12");
+}
+
+#[test]
+fn latex_cbrt() {
+    assert_eq!(eval(r"\sqrt[3]{27}"), "3");
+}
+
+#[test]
+fn latex_pi() {
+    let result = eval(r"2 \cdot \pi");
+    assert!(result.starts_with("6.28318530717958"));
+}
+
+#[test]
+fn latex_trig() {
+    let result = eval(r"\sin{0}");
+    assert_eq!(result, "0");
+}
