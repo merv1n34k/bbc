@@ -134,7 +134,8 @@ fn digit_char(d: u8) -> char {
 pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegistry) -> String {
     // If quantity has an explicit unit label, use it
     if let Some(ref label) = q.unit {
-        let display_val = &q.val / &label.scale;
+        // For affine units: display_val = (SI_val - offset) / scale
+        let display_val = (&q.val - &label.offset) / &label.scale;
         let num_str = format_rational(&display_val, obase, scale);
         return format!("{} [{}]", num_str, label.name);
     }

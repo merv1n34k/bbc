@@ -360,13 +360,16 @@ impl Evaluator {
             });
         }
 
-        let (dim, scale) = self.resolve_unit_expr(unit)?;
+        let (dim, scale, offset) = self.resolve_unit_expr(unit)?;
         let scale_r = Rational::try_from(scale).unwrap_or_else(|_| Rational::from(1));
-        // Convert: the user writes `5 [km]`, meaning 5 km = 5 * 1000 m
-        let si_val = &q.val * &scale_r;
+        let offset_r = Rational::try_from(offset).unwrap_or_else(|_| Rational::from(0));
+        // For affine units: SI_val = user_val * scale + offset
+        // E.g., 25 [degC] -> SI = 25 * 1.0 + 273.15 = 298.15 K
+        let si_val = &q.val * &scale_r + &offset_r;
         let label = UnitLabel {
             name: format_unit_expr(unit),
             scale: scale_r,
+            offset: offset_r,
         };
         Ok(Value::Quantity(Quantity::with_unit(si_val, dim, label)))
     }
@@ -378,7 +381,7 @@ impl Evaluator {
         _env: &Env,
     ) -> Result<Value, Error> {
         let q = require_quantity(val, "unit conversion")?;
-        let (target_dim, target_scale) = self.resolve_unit_expr(target)?;
+        let (target_dim, target_scale, target_offset) = self.resolve_unit_expr(target)?;
 
         if !q.dim.compatible(target_dim) {
             return Err(Error::DimensionMismatch {
@@ -390,26 +393,36 @@ impl Evaluator {
 
         let target_scale_r =
             Rational::try_from(target_scale).unwrap_or_else(|_| Rational::from(1));
+        let target_offset_r =
+            Rational::try_from(target_offset).unwrap_or_else(|_| Rational::from(0));
         let target_name = format_unit_expr(target);
         let label = UnitLabel {
             name: target_name,
             scale: target_scale_r,
+            offset: target_offset_r,
         };
         // Keep val in SI, attach unit label for display
         Ok(Value::Quantity(Quantity::with_unit(q.val, q.dim, label)))
     }
 
-    /// Resolve a parsed UnitExpr to (DimVec, combined_scale_to_SI)
-    fn resolve_unit_expr(&self, unit: &UnitExpr) -> Result<(DimVec, f64), Error> {
+    /// Resolve a parsed UnitExpr to (DimVec, combined_scale_to_SI, offset).
+    /// Offset is only non-zero for single affine units (e.g., degC, degF).
+    fn resolve_unit_expr(&self, unit: &UnitExpr) -> Result<(DimVec, f64, f64), Error> {
         let mut combined_dim = DimVec::DIMENSIONLESS;
         let mut combined_scale = 1.0;
+        let mut combined_offset = 0.0;
 
         for part in &unit.parts {
-            let (dim, scale, _offset) =
+            let (dim, scale, offset) =
                 self.registry.resolve(&part.name).ok_or_else(|| Error::UnknownUnit {
                     name: part.name.clone(),
                     span: None,
                 })?;
+
+            // Offset only valid for single unit with exp=1
+            if offset != 0.0 && unit.parts.len() == 1 && part.exp == 1 {
+                combined_offset = offset;
+            }
 
             if part.exp == 1 {
                 combined_dim = combined_dim.mul(dim);
@@ -423,7 +436,7 @@ impl Evaluator {
             }
         }
 
-        Ok((combined_dim, combined_scale))
+        Ok((combined_dim, combined_scale, combined_offset))
     }
 
     fn builtin_constant(&self, name: &str) -> Option<Value> {

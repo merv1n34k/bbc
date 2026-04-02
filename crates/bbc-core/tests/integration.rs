@@ -277,3 +277,46 @@ fn arrow_lowest_precedence() {
     assert!(result.contains("[mph]"));
     assert!(result.contains("1700"));
 }
+
+// --- Common TOML units ---
+
+#[test]
+fn common_time_units() {
+    let result = eval("90 [min] -> [hr]");
+    assert!(result.contains("1.5"));
+    assert!(result.contains("[hr]"));
+}
+
+#[test]
+fn common_temperature() {
+    // 25 degC -> degF should be ~77
+    let result = eval("25 [degC] -> [degF]");
+    assert!(result.contains("[degF]"));
+    assert!(result.starts_with("77") || result.starts_with("76.99"));
+}
+
+// --- Unit set loading ---
+
+fn eval_with_units(input: &str, unit_sets: &[&str]) -> String {
+    let mut evaluator = Evaluator::new();
+    for set in unit_sets {
+        evaluator.registry.load_unit_set(set);
+    }
+    let mut env = Env::new();
+    bbc_core::evaluate_and_format(input, &mut env, &evaluator).unwrap()
+}
+
+#[test]
+fn imperial_unit_set() {
+    let result = eval_with_units("1 [yd] -> [m]", &["imperial"]);
+    assert!(result.contains("[m]"));
+    assert!(result.starts_with("0.9144") || result.starts_with("0.9143999"));
+}
+
+#[test]
+fn scientific_unit_set() {
+    let result = eval_with_units("1 [eV] -> [J]", &["scientific"]);
+    assert!(result.contains("[J]"));
+    // 1.602e-19 displays as 0.00000000000000000016 at scale=20
+    assert!(result.contains("0.00000000000000000016"));
+}

@@ -1,9 +1,17 @@
 use std::collections::HashMap;
 
+use serde::Deserialize;
+
 use crate::dim::DimVec;
 
+include!(concat!(env!("OUT_DIR"), "/unit_sets.rs"));
+
+/// Names of unit sets always loaded (SI derived + common non-SI).
+const DEFAULT_SETS: &[&str] = &["derived", "common"];
+
+#[derive(Debug, Clone)]
 pub struct UnitDef {
-    pub name: &'static str,
+    pub name: String,
     pub dim: DimVec,
     pub scale: f64,
     pub offset: f64,
@@ -47,10 +55,28 @@ pub const DISPLAY_PREFIXES: &[(&str, i8)] = &[
     ("p", -12),
 ];
 
+// -- TOML deserialization types --
+
+#[derive(Deserialize)]
+struct TomlUnitFile {
+    #[serde(default)]
+    units: HashMap<String, TomlUnitDef>,
+    #[serde(default)]
+    derived: HashMap<String, Vec<i8>>,
+}
+
+#[derive(Deserialize)]
+struct TomlUnitDef {
+    scale: f64,
+    dim: Vec<i8>,
+    #[serde(default)]
+    offset: f64,
+}
+
 pub struct UnitRegistry {
-    units: HashMap<&'static str, UnitDef>,
+    units: HashMap<String, Vec<UnitDef>>,
     /// Reverse lookup: DimVec -> best display name
-    derived_names: Vec<(DimVec, &'static str)>,
+    derived_names: Vec<(DimVec, String)>,
 }
 
 impl UnitRegistry {
@@ -59,96 +85,100 @@ impl UnitRegistry {
             units: HashMap::new(),
             derived_names: Vec::new(),
         };
-        reg.register_defaults();
+        reg.register_si_base();
+        for name in DEFAULT_SETS {
+            reg.load_unit_set(name);
+        }
         reg
     }
 
-    fn register_defaults(&mut self) {
-        // SI base units
+    fn register_si_base(&mut self) {
         self.add("m",   [1, 0, 0, 0, 0, 0, 0], 1.0, 0.0);
-        self.add("g",   [0, 1, 0, 0, 0, 0, 0], 1e-3, 0.0); // base SI is kg
+        self.add("g",   [0, 1, 0, 0, 0, 0, 0], 1e-3, 0.0);
         self.add("s",   [0, 0, 1, 0, 0, 0, 0], 1.0, 0.0);
         self.add("A",   [0, 0, 0, 1, 0, 0, 0], 1.0, 0.0);
         self.add("K",   [0, 0, 0, 0, 1, 0, 0], 1.0, 0.0);
         self.add("mol", [0, 0, 0, 0, 0, 1, 0], 1.0, 0.0);
         self.add("cd",  [0, 0, 0, 0, 0, 0, 1], 1.0, 0.0);
-
-        // SI derived units
-        self.add_derived("N",  [1, 1, -2, 0, 0, 0, 0], 1.0);  // newton
-        self.add_derived("J",  [2, 1, -2, 0, 0, 0, 0], 1.0);  // joule
-        self.add_derived("W",  [2, 1, -3, 0, 0, 0, 0], 1.0);  // watt
-        self.add_derived("Pa", [-1, 1, -2, 0, 0, 0, 0], 1.0); // pascal
-        self.add_derived("V",  [2, 1, -3, -1, 0, 0, 0], 1.0); // volt
-        self.add_derived("Ohm",[2, 1, -3, -2, 0, 0, 0], 1.0); // ohm
-        self.add_derived("F",  [-2, -1, 4, 2, 0, 0, 0], 1.0); // farad
-        self.add_derived("Hz", [0, 0, -1, 0, 0, 0, 0], 1.0);  // hertz
-        self.add_derived("C",  [0, 0, 1, 1, 0, 0, 0], 1.0);   // coulomb
-        self.add_derived("H",  [2, 1, -2, -2, 0, 0, 0], 1.0); // henry
-        self.add_derived("T",  [0, 1, -2, -1, 0, 0, 0], 1.0); // tesla
-        self.add_derived("Wb", [2, 1, -2, -1, 0, 0, 0], 1.0); // weber
-        self.add_derived("lm", [0, 0, 0, 0, 0, 0, 1], 1.0);   // lumen
-        self.add_derived("lx", [-2, 0, 0, 0, 0, 0, 1], 1.0);  // lux
-
-        // Time derived
-        self.add("min", [0, 0, 1, 0, 0, 0, 0], 60.0, 0.0);
-        self.add("hr",  [0, 0, 1, 0, 0, 0, 0], 3600.0, 0.0);
-        self.add("day", [0, 0, 1, 0, 0, 0, 0], 86400.0, 0.0);
-
-        // Imperial / common
-        self.add("ft",  [1, 0, 0, 0, 0, 0, 0], 0.3048, 0.0);
-        self.add("in",  [1, 0, 0, 0, 0, 0, 0], 0.0254, 0.0);
-        self.add("yd",  [1, 0, 0, 0, 0, 0, 0], 0.9144, 0.0);
-        self.add("mi",  [1, 0, 0, 0, 0, 0, 0], 1609.344, 0.0);
-        self.add("lb",  [0, 1, 0, 0, 0, 0, 0], 0.45359237, 0.0);
-        self.add("oz",  [0, 1, 0, 0, 0, 0, 0], 0.028349523125, 0.0);
-        self.add("mph", [1, 0, -1, 0, 0, 0, 0], 0.44704, 0.0);
-        self.add("L",   [3, 0, 0, 0, 0, 0, 0], 1e-3, 0.0); // liter
-        self.add("gal", [3, 0, 0, 0, 0, 0, 0], 3.785411784e-3, 0.0);
-        self.add("bar", [-1, 1, -2, 0, 0, 0, 0], 1e5, 0.0);
-        self.add("atm", [-1, 1, -2, 0, 0, 0, 0], 101325.0, 0.0);
-        self.add("eV",  [2, 1, -2, 0, 0, 0, 0], 1.602176634e-19, 0.0);
-        self.add("cal", [2, 1, -2, 0, 0, 0, 0], 4.184, 0.0);
-
-        // Affine temperature units
-        self.add("degC", [0, 0, 0, 0, 1, 0, 0], 1.0, 273.15);
-        self.add("degF", [0, 0, 0, 0, 1, 0, 0], 5.0 / 9.0, 459.67 * 5.0 / 9.0);
     }
 
-    fn add(&mut self, name: &'static str, dim: [i8; 7], scale: f64, offset: f64) {
-        self.units.insert(name, UnitDef {
-            name,
+    fn add(&mut self, name: &str, dim: [i8; 7], scale: f64, offset: f64) {
+        let def = UnitDef {
+            name: name.to_string(),
             dim: DimVec::new(dim),
             scale,
             offset,
-        });
+        };
+        self.units.entry(name.to_string()).or_default().push(def);
     }
 
-    fn add_derived(&mut self, name: &'static str, dim: [i8; 7], scale: f64) {
-        let dv = DimVec::new(dim);
-        self.units.insert(name, UnitDef {
-            name,
-            dim: dv,
-            scale,
-            offset: 0.0,
-        });
-        self.derived_names.push((dv, name));
+    /// Load units from a TOML string.
+    pub fn load_toml(&mut self, content: &str) {
+        let file: TomlUnitFile = toml::from_str(content)
+            .expect("failed to parse unit TOML");
+
+        for (name, def) in &file.units {
+            let dim_arr = to_dim_array(&def.dim);
+            let dv = DimVec::new(dim_arr);
+            let unit_def = UnitDef {
+                name: name.clone(),
+                dim: dv,
+                scale: def.scale,
+                offset: def.offset,
+            };
+
+            let entries = self.units.entry(name.clone()).or_default();
+            if let Some(existing) = entries.iter_mut().find(|e| e.dim == dv) {
+                eprintln!("warning: duplicate unit '{}' ({}) redefined, using last definition", name, dv);
+                *existing = unit_def;
+            } else {
+                entries.push(unit_def);
+            }
+        }
+
+        for (name, dim_arr) in &file.derived {
+            let dv = DimVec::new(to_dim_array(dim_arr));
+            if !self.derived_names.iter().any(|(d, _)| *d == dv) {
+                self.derived_names.push((dv, name.clone()));
+            }
+        }
+    }
+
+    /// Load a named unit set from embedded TOML data.
+    pub fn load_unit_set(&mut self, name: &str) {
+        for &(set_name, content) in UNIT_SETS {
+            if set_name == name {
+                self.load_toml(content);
+                return;
+            }
+        }
+        eprintln!("warning: unknown unit set '{}', available: {:?}",
+            name, Self::available_unit_sets());
+    }
+
+    /// Returns all available unit set names (derived from data/*.toml filenames).
+    pub fn available_unit_sets() -> Vec<&'static str> {
+        UNIT_SETS.iter().map(|&(name, _)| name).collect()
     }
 
     /// Resolve a unit string like "km", "mV", "N", "degC".
     /// Returns (DimVec, total_scale_to_SI, offset).
+    /// For units with multiple definitions (dimensional overload), returns the first.
     pub fn resolve(&self, unit_str: &str) -> Option<(DimVec, f64, f64)> {
-        // Try exact match first
-        if let Some(def) = self.units.get(unit_str) {
-            return Some((def.dim, def.scale, def.offset));
+        if let Some(defs) = self.units.get(unit_str) {
+            if let Some(def) = defs.first() {
+                return Some((def.dim, def.scale, def.offset));
+            }
         }
 
-        // Try prefix + base unit
         for prefix in PREFIXES {
             if let Some(base) = unit_str.strip_prefix(prefix.symbol) {
                 if !base.is_empty() {
-                    if let Some(def) = self.units.get(base) {
-                        let prefix_scale = 10f64.powi(prefix.exponent as i32);
-                        return Some((def.dim, def.scale * prefix_scale, def.offset));
+                    if let Some(defs) = self.units.get(base) {
+                        if let Some(def) = defs.first() {
+                            let prefix_scale = 10f64.powi(prefix.exponent as i32);
+                            return Some((def.dim, def.scale * prefix_scale, def.offset));
+                        }
                     }
                 }
             }
@@ -157,8 +187,30 @@ impl UnitRegistry {
         None
     }
 
+    /// Resolve with dimensional overloads. Returns all matching definitions.
+    pub fn resolve_all(&self, unit_str: &str) -> Vec<(DimVec, f64, f64)> {
+        if let Some(defs) = self.units.get(unit_str) {
+            return defs.iter().map(|d| (d.dim, d.scale, d.offset)).collect();
+        }
+
+        for prefix in PREFIXES {
+            if let Some(base) = unit_str.strip_prefix(prefix.symbol) {
+                if !base.is_empty() {
+                    if let Some(defs) = self.units.get(base) {
+                        let prefix_scale = 10f64.powi(prefix.exponent as i32);
+                        return defs.iter()
+                            .map(|d| (d.dim, d.scale * prefix_scale, d.offset))
+                            .collect();
+                    }
+                }
+            }
+        }
+
+        Vec::new()
+    }
+
     /// Find the best derived unit name for a dimension vector.
-    pub fn find_derived_name(&self, dim: DimVec) -> Option<&'static str> {
+    pub fn find_derived_name(&self, dim: DimVec) -> Option<&str> {
         for (d, name) in &self.derived_names {
             if *d == dim {
                 return Some(name);
@@ -168,7 +220,6 @@ impl UnitRegistry {
     }
 
     /// Select the best prefix to display a value in a given unit.
-    /// Returns (scaled_value, prefix_symbol).
     pub fn best_prefix(val_in_base: f64) -> (&'static str, f64) {
         let abs = val_in_base.abs();
         if abs == 0.0 {
@@ -181,13 +232,25 @@ impl UnitRegistry {
                 return (sym, val_in_base / scale);
             }
         }
-        // Fallback: no prefix
         ("", val_in_base)
     }
 
-    pub fn get(&self, name: &str) -> Option<&UnitDef> {
-        self.units.get(name)
+    /// Register a single unit at runtime (e.g., from `unit bread = 1`).
+    pub fn add_runtime(&mut self, name: &str, dim: [i8; 7], scale: f64, offset: f64) {
+        self.add(name, dim, scale, offset);
     }
+
+    pub fn get(&self, name: &str) -> Option<&UnitDef> {
+        self.units.get(name).and_then(|v| v.first())
+    }
+}
+
+fn to_dim_array(v: &[i8]) -> [i8; 7] {
+    let mut arr = [0i8; 7];
+    for (i, &e) in v.iter().take(7).enumerate() {
+        arr[i] = e;
+    }
+    arr
 }
 
 impl Default for UnitRegistry {
@@ -230,6 +293,16 @@ mod tests {
         let (dim, scale, _) = reg.resolve("kN").unwrap();
         assert_eq!(dim, DimVec::new([1, 1, -2, 0, 0, 0, 0]));
         assert!((scale - 1000.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn resolve_common_units() {
+        let reg = UnitRegistry::new();
+        assert!(reg.resolve("min").is_some());
+        assert!(reg.resolve("hr").is_some());
+        assert!(reg.resolve("mph").is_some());
+        assert!(reg.resolve("degC").is_some());
+        assert!(reg.resolve("L").is_some());
     }
 
     #[test]

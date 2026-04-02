@@ -6,6 +6,7 @@ use malachite::Rational;
 pub struct UnitLabel {
     pub name: String,
     pub scale: Rational,
+    pub offset: Rational,
 }
 
 /// A quantity: number + dimension vector.

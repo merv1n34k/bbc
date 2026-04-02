@@ -23,13 +23,22 @@ struct Cli {
     /// Decimal precision (default 20)
     #[arg(long, default_value = "20")]
     scale: u32,
+
+    /// Additional unit sets to load (comma-separated, e.g., "imperial,scientific")
+    #[arg(long, value_delimiter = ',')]
+    units: Vec<String>,
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    let evaluator = Evaluator::new();
+    let mut evaluator = Evaluator::new();
     let mut env = Env::new();
+
+    // Load additional unit sets
+    for set_name in &cli.units {
+        evaluator.registry.load_unit_set(set_name);
+    }
 
     // Apply CLI settings
     if cli.obase != 10 {

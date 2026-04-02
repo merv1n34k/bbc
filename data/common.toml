@@ -1,0 +1,36 @@
+# Common non-SI units -- loaded by default
+
+[units]
+# Time
+min  = { scale = 60.0,      dim = [0, 0, 1, 0, 0, 0, 0] }
+hr   = { scale = 3600.0,    dim = [0, 0, 1, 0, 0, 0, 0] }
+day  = { scale = 86400.0,   dim = [0, 0, 1, 0, 0, 0, 0] }
+week = { scale = 604800.0,  dim = [0, 0, 1, 0, 0, 0, 0] }
+yr   = { scale = 31557600.0, dim = [0, 0, 1, 0, 0, 0, 0] }  # Julian year
+
+# Volume
+L    = { scale = 1e-3,      dim = [3, 0, 0, 0, 0, 0, 0] }
+
+# Temperature (affine)
+degC = { scale = 1.0,       dim = [0, 0, 0, 0, 1, 0, 0], offset = 273.15 }
+degF = { scale = 0.5555555555555556, dim = [0, 0, 0, 0, 1, 0, 0], offset = 255.37222222222222 }
+
+# Pressure
+bar  = { scale = 1e5,       dim = [-1, 1, -2, 0, 0, 0, 0] }
+atm  = { scale = 101325.0,  dim = [-1, 1, -2, 0, 0, 0, 0] }
+
+# Energy
+cal  = { scale = 4.184,     dim = [2, 1, -2, 0, 0, 0, 0] }
+Cal  = { scale = 4184.0,    dim = [2, 1, -2, 0, 0, 0, 0] }  # kcal
+
+# Common imperial (also in imperial.toml for completeness)
+ft   = { scale = 0.3048,          dim = [1, 0, 0, 0, 0, 0, 0] }
+in   = { scale = 0.0254,          dim = [1, 0, 0, 0, 0, 0, 0] }
+mi   = { scale = 1609.344,        dim = [1, 0, 0, 0, 0, 0, 0] }
+lb   = { scale = 0.45359237,      dim = [0, 1, 0, 0, 0, 0, 0] }
+oz   = { scale = 0.028349523125,  dim = [0, 1, 0, 0, 0, 0, 0] }
+gal  = { scale = 3.785411784e-3,  dim = [3, 0, 0, 0, 0, 0, 0] }
+
+# Speed
+mph  = { scale = 0.44704,   dim = [1, 0, -1, 0, 0, 0, 0] }
+kph  = { scale = 0.27777777777777778, dim = [1, 0, -1, 0, 0, 0, 0] }
