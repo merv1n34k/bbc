@@ -13,7 +13,20 @@ impl Parser {
     }
 
     pub fn parse(&mut self) -> Result<Expr, Error> {
-        let expr = self.parse_expr(0)?;
+        let mut expr = self.parse_expr(0)?;
+
+        // -> at lowest precedence: checked after the full expression
+        if matches!(self.peek(), Token::Arrow) {
+            self.advance();
+            self.expect(&Token::LBracket)?;
+            let target = self.parse_unit_expr()?;
+            self.expect(&Token::RBracket)?;
+            expr = Expr::Convert {
+                expr: Box::new(expr),
+                target,
+            };
+        }
+
         if !self.at_eof() {
             let tok = &self.tokens[self.pos];
             return Err(Error::ParseError {
@@ -73,19 +86,6 @@ impl Parser {
                 } else {
                     self.pos = saved;
                 }
-            }
-
-            // Check for -> conversion
-            if matches!(self.peek(), Token::Arrow) {
-                self.advance();
-                self.expect(&Token::LBracket)?;
-                let target = self.parse_unit_expr()?;
-                self.expect(&Token::RBracket)?;
-                left = Expr::Convert {
-                    expr: Box::new(left),
-                    target,
-                };
-                continue;
             }
 
             // Check for binary operator

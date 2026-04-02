@@ -1,6 +1,13 @@
 use crate::dim::DimVec;
 use malachite::Rational;
 
+/// A label describing what unit a quantity is displayed in.
+#[derive(Debug, Clone)]
+pub struct UnitLabel {
+    pub name: String,
+    pub scale: Rational,
+}
+
 /// A quantity: number + dimension vector.
 /// Dimensionless values have dim == DimVec::DIMENSIONLESS.
 /// Internally, values are always in SI base units.
@@ -8,6 +15,8 @@ use malachite::Rational;
 pub struct Quantity {
     pub val: Rational,
     pub dim: DimVec,
+    /// Preferred display unit (set by -> conversion or unit annotation).
+    pub unit: Option<UnitLabel>,
 }
 
 impl Quantity {
@@ -15,11 +24,20 @@ impl Quantity {
         Quantity {
             val,
             dim: DimVec::DIMENSIONLESS,
+            unit: None,
         }
     }
 
     pub fn new(val: Rational, dim: DimVec) -> Self {
-        Quantity { val, dim }
+        Quantity { val, dim, unit: None }
+    }
+
+    pub fn with_unit(val: Rational, dim: DimVec, unit: UnitLabel) -> Self {
+        Quantity {
+            val,
+            dim,
+            unit: Some(unit),
+        }
     }
 
     pub fn is_dimensionless(&self) -> bool {

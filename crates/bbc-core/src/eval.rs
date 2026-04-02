@@ -7,7 +7,7 @@ use crate::dim::DimVec;
 use crate::env::Env;
 use crate::error::Error;
 use crate::units::UnitRegistry;
-use crate::value::{Quantity, Value};
+use crate::value::{Quantity, UnitLabel, Value};
 
 pub struct Evaluator {
     pub registry: UnitRegistry,
@@ -195,7 +195,8 @@ impl Evaluator {
                         span: None,
                     });
                 }
-                Ok(Value::Quantity(Quantity::new(l.val + r.val, l.dim)))
+                let unit = merge_unit_labels(&l.unit, &r.unit);
+                Ok(Value::Quantity(Quantity { val: l.val + r.val, dim: l.dim, unit }))
             }
             BinOp::Sub => {
                 let l = require_quantity(left, "subtraction")?;
@@ -207,7 +208,8 @@ impl Evaluator {
                         span: None,
                     });
                 }
-                Ok(Value::Quantity(Quantity::new(l.val - r.val, l.dim)))
+                let unit = merge_unit_labels(&l.unit, &r.unit);
+                Ok(Value::Quantity(Quantity { val: l.val - r.val, dim: l.dim, unit }))
             }
             BinOp::Mul => {
                 let l = require_quantity(left, "multiplication")?;
@@ -359,9 +361,14 @@ impl Evaluator {
         }
 
         let (dim, scale) = self.resolve_unit_expr(unit)?;
+        let scale_r = Rational::try_from(scale).unwrap_or_else(|_| Rational::from(1));
         // Convert: the user writes `5 [km]`, meaning 5 km = 5 * 1000 m
-        let si_val = q.val * Rational::try_from(scale).unwrap_or_else(|_| Rational::from(1));
-        Ok(Value::Quantity(Quantity::new(si_val, dim)))
+        let si_val = &q.val * &scale_r;
+        let label = UnitLabel {
+            name: format_unit_expr(unit),
+            scale: scale_r,
+        };
+        Ok(Value::Quantity(Quantity::with_unit(si_val, dim, label)))
     }
 
     fn convert_unit(
@@ -381,18 +388,15 @@ impl Evaluator {
             });
         }
 
-        // Convert from SI to target: val_in_target = val_in_si / target_scale
         let target_scale_r =
             Rational::try_from(target_scale).unwrap_or_else(|_| Rational::from(1));
-        let converted = &q.val / &target_scale_r;
-
-        // Return a ConvertedQuantity so the display layer knows the target unit
         let target_name = format_unit_expr(target);
-        Ok(Value::String(format!(
-            "{} [{}]",
-            crate::format::format_rational(&converted, 10, 20),
-            target_name
-        )))
+        let label = UnitLabel {
+            name: target_name,
+            scale: target_scale_r,
+        };
+        // Keep val in SI, attach unit label for display
+        Ok(Value::Quantity(Quantity::with_unit(q.val, q.dim, label)))
     }
 
     /// Resolve a parsed UnitExpr to (DimVec, combined_scale_to_SI)
@@ -691,6 +695,13 @@ fn values_equal(a: &Value, b: &Value) -> bool {
         (Value::Bool(a), Value::Bool(b)) => a == b,
         (Value::String(a), Value::String(b)) => a == b,
         _ => false,
+    }
+}
+
+fn merge_unit_labels(a: &Option<UnitLabel>, b: &Option<UnitLabel>) -> Option<UnitLabel> {
+    match (a, b) {
+        (Some(la), Some(lb)) if la.name == lb.name => Some(la.clone()),
+        _ => None,
     }
 }
 

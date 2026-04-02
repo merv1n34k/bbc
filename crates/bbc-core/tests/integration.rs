@@ -267,3 +267,13 @@ fn unknown_unit_error() {
     let err = eval_err("5 [qux]");
     assert!(err.contains("unknown unit"));
 }
+
+// --- Arrow precedence ---
+
+#[test]
+fn arrow_lowest_precedence() {
+    // -> should bind after the full expression: (10 [m/s] + 45 [km/min]) -> [mph]
+    let result = eval("10 [m/s] + 45 [km/min] -> [mph]");
+    assert!(result.contains("[mph]"));
+    assert!(result.contains("1700"));
+}
