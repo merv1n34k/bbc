@@ -1,0 +1,11 @@
+# Web development units
+# CSS absolute lengths: 1in = 96px = 72pt = 6pc
+# em/rem assume default browser font size of 16px
+# All derived from 1in = 0.0254m
+
+[webdev]
+px  = { scale = 2.6458333333333333e-4, dim = [1, 0, 0, 0, 0, 0, 0] }
+pt  = { scale = 3.5277777777777778e-4, dim = [1, 0, 0, 0, 0, 0, 0] }
+pc  = { scale = 4.2333333333333333e-3, dim = [1, 0, 0, 0, 0, 0, 0] }
+em  = { scale = 4.2333333333333333e-3, dim = [1, 0, 0, 0, 0, 0, 0] }
+rem = { scale = 4.2333333333333333e-3, dim = [1, 0, 0, 0, 0, 0, 0] }
