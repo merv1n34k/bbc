@@ -31,6 +31,10 @@ struct Cli {
     /// Enable significant figures tracking
     #[arg(long)]
     sigfig: bool,
+
+    /// Strict SI mode: output in bare SI units only, no conversion
+    #[arg(long)]
+    strict: bool,
 }
 
 fn main() {
@@ -50,6 +54,9 @@ fn main() {
     // Apply CLI settings
     if cli.sigfig {
         env.set_sigfig(true);
+    }
+    if cli.strict {
+        env.set_strict(true);
     }
     if cli.obase != 10 {
         let _ = env.set_var("obase".into(), bbc_core::value::Value::from_int(cli.obase as i64));

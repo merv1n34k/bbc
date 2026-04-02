@@ -69,6 +69,12 @@ impl Evaluator {
             }
 
             Expr::Convert { expr, target, base } => {
+                if env.strict_mode() {
+                    return Err(Error::TypeError {
+                        msg: "strict mode: explicit conversion not allowed".to_string(),
+                        span: None,
+                    });
+                }
                 let val = self.eval(expr, env)?;
                 let mut result = if let Some(target) = target {
                     self.convert_unit(val, target, env)?

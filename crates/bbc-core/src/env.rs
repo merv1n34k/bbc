@@ -9,6 +9,7 @@ pub struct Env {
     immutable: HashSet<String>,
     modules: Vec<Box<dyn Module>>,
     sigfig: bool,
+    strict: bool,
 }
 
 impl Env {
@@ -18,6 +19,7 @@ impl Env {
             immutable: HashSet::new(),
             modules: Vec::new(),
             sigfig: false,
+            strict: false,
         };
         // Default settings
         env.variables
@@ -85,6 +87,14 @@ impl Env {
 
     pub fn set_sigfig(&mut self, on: bool) {
         self.sigfig = on;
+    }
+
+    pub fn strict_mode(&self) -> bool {
+        self.strict
+    }
+
+    pub fn set_strict(&mut self, on: bool) {
+        self.strict = on;
     }
 
     pub fn get_obase(&self) -> u32 {

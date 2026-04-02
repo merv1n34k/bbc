@@ -456,3 +456,39 @@ fn base_fraction_binary() {
 fn base_fraction_octal() {
     assert_eq!(eval("8x7.4"), "7.5");
 }
+
+// --- Strict SI mode ---
+
+fn eval_strict(input: &str) -> String {
+    let evaluator = Evaluator::new();
+    let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
+    env.set_strict(true);
+    bbc_core::evaluate_and_format(input, &mut env, &evaluator)
+        .unwrap_or_else(|e| format!("error: {}", e))
+}
+
+#[test]
+fn strict_bare_si() {
+    let result = eval_strict("5 [mi]");
+    assert!(result.contains("[m]"));
+    assert!(result.starts_with("8046.72"));
+}
+
+#[test]
+fn strict_no_derived() {
+    // 9.8 N should show as m*kg*s^-2, not N
+    let result = eval_strict("9.8 [m*s^-2]");
+    assert!(result.contains("[m*s^-2]"));
+}
+
+#[test]
+fn strict_no_conversion() {
+    let result = eval_strict("100 [km] -> [mi]");
+    assert!(result.contains("strict mode"));
+}
+
+#[test]
+fn strict_decimal_only() {
+    assert_eq!(eval_strict("16xFF"), "255");
+}

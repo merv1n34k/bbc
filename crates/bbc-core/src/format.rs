@@ -206,6 +206,21 @@ pub fn format_value(val: &Value, obase: u32, scale: u32, registry: &UnitRegistry
     }
 }
 
+pub fn format_value_strict(val: &Value, scale: u32) -> String {
+    match val {
+        Value::Quantity(q) => {
+            let num_str = format_with_sigfigs(&q.val, 10, scale, q.sigfigs);
+            if q.dim.is_dimensionless() {
+                num_str
+            } else {
+                format!("{} [{}]", num_str, q.dim)
+            }
+        }
+        Value::Bool(b) => b.to_string(),
+        Value::String(s) => s.clone(),
+    }
+}
+
 /// Format a quantity with an explicit target unit for `->` conversion display.
 /// Divides the SI value by target_scale using exact rational arithmetic.
 pub fn format_quantity_in_unit(
