@@ -27,6 +27,10 @@ struct Cli {
     /// Additional unit sets to load (comma-separated, e.g., "imperial,scientific")
     #[arg(long, value_delimiter = ',')]
     units: Vec<String>,
+
+    /// Enable significant figures tracking
+    #[arg(long)]
+    sigfig: bool,
 }
 
 fn main() {
@@ -44,6 +48,9 @@ fn main() {
     }
 
     // Apply CLI settings
+    if cli.sigfig {
+        env.set_sigfig(true);
+    }
     if cli.obase != 10 {
         let _ = env.set_var("obase".into(), bbc_core::value::Value::from_int(cli.obase as i64));
     }

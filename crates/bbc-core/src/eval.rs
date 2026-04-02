@@ -22,7 +22,7 @@ impl Evaluator {
 
     pub fn eval(&self, expr: &Expr, env: &mut Env) -> Result<Value, Error> {
         match expr {
-            Expr::Number { value, base } => self.eval_number(value, *base),
+            Expr::Number { value, base } => self.eval_number(value, *base, env.sigfig_mode()),
 
             Expr::Bool(b) => Ok(Value::Bool(*b)),
 
@@ -103,15 +103,15 @@ impl Evaluator {
         }
     }
 
-    fn eval_number(&self, value: &str, base: u32) -> Result<Value, Error> {
+    fn eval_number(&self, value: &str, base: u32, sigfig_mode: bool) -> Result<Value, Error> {
         if base == 10 {
-            self.parse_decimal(value)
+            self.parse_decimal(value, sigfig_mode)
         } else {
             self.parse_based_number(value, base)
         }
     }
 
-    fn parse_decimal(&self, s: &str) -> Result<Value, Error> {
+    fn parse_decimal(&self, s: &str, sigfig_mode: bool) -> Result<Value, Error> {
         // Handle scientific notation
         if let Some(e_pos) = s.find(|c: char| c == 'e' || c == 'E') {
             let mantissa_str = &s[..e_pos];
@@ -124,11 +124,25 @@ impl Evaluator {
 
             let ten = Rational::from(10);
             let scale = rational_pow(&ten, exp);
-            let q = mantissa.into_quantity().unwrap();
-            return Ok(Value::from_rational(q.val * scale));
+            let mut q = mantissa.into_quantity().unwrap();
+            q.val = q.val * scale;
+            // Sigfigs from mantissa digits
+            if sigfig_mode {
+                q.sigfigs = Some(count_sigfigs(mantissa_str));
+            }
+            return Ok(Value::Quantity(q));
         }
 
-        self.parse_decimal_simple(s)
+        let mut val = self.parse_decimal_simple(s)?;
+        if sigfig_mode {
+            if let Value::Quantity(ref mut q) = val {
+                if s.contains('.') {
+                    q.sigfigs = Some(count_sigfigs(s));
+                }
+                // integers are exact (None)
+            }
+        }
+        Ok(val)
     }
 
     fn parse_decimal_simple(&self, s: &str) -> Result<Value, Error> {
@@ -228,7 +242,8 @@ impl Evaluator {
                     });
                 }
                 let unit = merge_unit_labels(&l.unit, &r.unit);
-                Ok(Value::Quantity(Quantity { val: l.val + r.val, dim: l.dim, unit, display_base: None }))
+                let sigfigs = combine_sigfigs_add(l.sigfigs, r.sigfigs);
+                Ok(Value::Quantity(Quantity { val: l.val + r.val, dim: l.dim, unit, display_base: None, sigfigs }))
             }
             BinOp::Sub => {
                 let l = require_quantity(left, "subtraction")?;
@@ -241,15 +256,16 @@ impl Evaluator {
                     });
                 }
                 let unit = merge_unit_labels(&l.unit, &r.unit);
-                Ok(Value::Quantity(Quantity { val: l.val - r.val, dim: l.dim, unit, display_base: None }))
+                let sigfigs = combine_sigfigs_add(l.sigfigs, r.sigfigs);
+                Ok(Value::Quantity(Quantity { val: l.val - r.val, dim: l.dim, unit, display_base: None, sigfigs }))
             }
             BinOp::Mul => {
                 let l = require_quantity(left, "multiplication")?;
                 let r = require_quantity(right, "multiplication")?;
-                Ok(Value::Quantity(Quantity::new(
-                    l.val * r.val,
-                    l.dim.mul(r.dim),
-                )))
+                let sigfigs = combine_sigfigs_mul(l.sigfigs, r.sigfigs);
+                let mut q = Quantity::new(l.val * r.val, l.dim.mul(r.dim));
+                q.sigfigs = sigfigs;
+                Ok(Value::Quantity(q))
             }
             BinOp::Div => {
                 let l = require_quantity(left, "division")?;
@@ -257,10 +273,10 @@ impl Evaluator {
                 if r.val == Rational::from(0) {
                     return Err(Error::DivisionByZero { span: None });
                 }
-                Ok(Value::Quantity(Quantity::new(
-                    l.val / r.val,
-                    l.dim.div(r.dim),
-                )))
+                let sigfigs = combine_sigfigs_mul(l.sigfigs, r.sigfigs);
+                let mut q = Quantity::new(l.val / r.val, l.dim.div(r.dim));
+                q.sigfigs = sigfigs;
+                Ok(Value::Quantity(q))
             }
             BinOp::Mod => {
                 let l = require_quantity(left, "modulo")?;
@@ -726,6 +742,41 @@ fn values_equal(a: &Value, b: &Value) -> bool {
         (Value::String(a), Value::String(b)) => a == b,
         _ => false,
     }
+}
+
+fn count_sigfigs(s: &str) -> u32 {
+    let s = s.trim_start_matches('-');
+    if s.contains('.') {
+        // All digits are significant (leading zeros before decimal don't count,
+        // but trailing zeros after decimal do)
+        let without_dot = s.replace('.', "");
+        let trimmed = without_dot.trim_start_matches('0');
+        if trimmed.is_empty() {
+            // "0.0" -> 1 sigfig
+            1
+        } else {
+            trimmed.len() as u32
+        }
+    } else {
+        // Integer in scientific notation mantissa: all digits significant
+        let trimmed = s.trim_start_matches('0');
+        if trimmed.is_empty() { 1 } else { trimmed.len() as u32 }
+    }
+}
+
+/// Combine sigfigs for mul/div: result = min(left, right), ignoring exact values (None).
+fn combine_sigfigs_mul(a: Option<u32>, b: Option<u32>) -> Option<u32> {
+    match (a, b) {
+        (Some(x), Some(y)) => Some(x.min(y)),
+        (Some(x), None) => Some(x),
+        (None, Some(y)) => Some(y),
+        (None, None) => None,
+    }
+}
+
+/// Combine sigfigs for add/sub: use the fewer sigfigs (simplified rule).
+fn combine_sigfigs_add(a: Option<u32>, b: Option<u32>) -> Option<u32> {
+    combine_sigfigs_mul(a, b)
 }
 
 fn digit_value(ch: char) -> u32 {

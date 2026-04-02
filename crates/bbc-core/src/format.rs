@@ -138,11 +138,11 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
     if let Some(ref label) = q.unit {
         // For affine units: display_val = (SI_val - offset) / scale
         let display_val = (&q.val - &label.offset) / &label.scale;
-        let num_str = format_rational(&display_val, effective_base, scale);
+        let num_str = format_with_sigfigs(&display_val, effective_base, scale, q.sigfigs);
         return format!("{} [{}]", num_str, label.name);
     }
 
-    let num_str = format_rational(&q.val, effective_base, scale);
+    let num_str = format_with_sigfigs(&q.val, effective_base, scale, q.sigfigs);
 
     if q.dim.is_dimensionless() {
         return num_str;
@@ -160,6 +160,34 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
 
     // Fall back to raw dimension display
     format!("{} [{}]", num_str, q.dim)
+}
+
+fn format_with_sigfigs(val: &Rational, obase: u32, scale: u32, sigfigs: Option<u32>) -> String {
+    match sigfigs {
+        Some(sf) if sf > 0 => {
+            let (f, _) = f64::rounding_from(val, RoundingMode::Nearest);
+            format_f64_sigfigs(f, sf)
+        }
+        _ => format_rational(val, obase, scale),
+    }
+}
+
+fn format_f64_sigfigs(val: f64, sigfigs: u32) -> String {
+    if val == 0.0 {
+        return "0".to_string();
+    }
+    let magnitude = val.abs().log10().floor() as i32;
+    let decimal_places = (sigfigs as i32 - 1 - magnitude).max(0) as usize;
+    let rounded = {
+        let factor = 10f64.powi(sigfigs as i32 - 1 - magnitude);
+        (val * factor).round() / factor
+    };
+    if decimal_places == 0 {
+        format!("{}", rounded as i64)
+    } else {
+        let s = format!("{:.prec$}", rounded, prec = decimal_places);
+        s
+    }
 }
 
 fn format_f64_trimmed(val: f64, scale: u32) -> String {

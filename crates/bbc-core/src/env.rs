@@ -8,6 +8,7 @@ pub struct Env {
     variables: HashMap<String, Value>,
     immutable: HashSet<String>,
     modules: Vec<Box<dyn Module>>,
+    sigfig: bool,
 }
 
 impl Env {
@@ -16,6 +17,7 @@ impl Env {
             variables: HashMap::new(),
             immutable: HashSet::new(),
             modules: Vec::new(),
+            sigfig: false,
         };
         // Default settings
         env.variables
@@ -75,6 +77,14 @@ impl Env {
             }
             _ => 20,
         }
+    }
+
+    pub fn sigfig_mode(&self) -> bool {
+        self.sigfig
+    }
+
+    pub fn set_sigfig(&mut self, on: bool) {
+        self.sigfig = on;
     }
 
     pub fn get_obase(&self) -> u32 {

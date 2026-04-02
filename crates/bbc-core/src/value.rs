@@ -20,6 +20,8 @@ pub struct Quantity {
     pub unit: Option<UnitLabel>,
     /// Override output base (set by -> 16x).
     pub display_base: Option<u32>,
+    /// Significant figures (None = exact/infinite precision).
+    pub sigfigs: Option<u32>,
 }
 
 impl Quantity {
@@ -29,11 +31,12 @@ impl Quantity {
             dim: DimVec::DIMENSIONLESS,
             unit: None,
             display_base: None,
+            sigfigs: None,
         }
     }
 
     pub fn new(val: Rational, dim: DimVec) -> Self {
-        Quantity { val, dim, unit: None, display_base: None }
+        Quantity { val, dim, unit: None, display_base: None, sigfigs: None }
     }
 
     pub fn with_unit(val: Rational, dim: DimVec, unit: UnitLabel) -> Self {
@@ -42,6 +45,7 @@ impl Quantity {
             dim,
             unit: Some(unit),
             display_base: None,
+            sigfigs: None,
         }
     }
 

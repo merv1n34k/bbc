@@ -397,6 +397,34 @@ fn latex_trig() {
     assert_eq!(result, "0");
 }
 
+// --- Sigfig mode ---
+
+fn eval_sigfig(input: &str) -> String {
+    let evaluator = Evaluator::new();
+    let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
+    env.set_sigfig(true);
+    bbc_core::evaluate_and_format(input, &mut env, &evaluator).unwrap()
+}
+
+#[test]
+fn sigfig_mul() {
+    // 3.14 has 3 sigfigs, 2.0 has 2 sigfigs -> result 2 sigfigs
+    assert_eq!(eval_sigfig("3.14 * 2.0"), "6.3");
+}
+
+#[test]
+fn sigfig_exact_times_measured() {
+    // 42 is exact (integer), 2.0 has 2 sigfigs -> result 2 sigfigs
+    assert_eq!(eval_sigfig("42 * 2.0"), "84");
+}
+
+#[test]
+fn sigfig_off_full_precision() {
+    // Without sigfig mode, full precision
+    assert_eq!(eval("3.14 * 2.0"), "6.28");
+}
+
 // --- Base conversion ---
 
 #[test]
