@@ -1,11 +1,38 @@
 # Scientific / physics units
 
 [units]
-eV       = { scale = 1.602176634e-19,  dim = [2, 1, -2, 0, 0, 0, 0] }
-Angstrom = { scale = 1e-10,            dim = [1, 0, 0, 0, 0, 0, 0] }
-au       = { scale = 1.495978707e11,   dim = [1, 0, 0, 0, 0, 0, 0] }
-ly       = { scale = 9.4607304725808e15, dim = [1, 0, 0, 0, 0, 0, 0] }
+# Energy
+eV       = { scale = 1.602176634e-19,     dim = [2, 1, -2, 0, 0, 0, 0] }
+erg      = { scale = 1e-7,                dim = [2, 1, -2, 0, 0, 0, 0] }
+
+# Length
+Angstrom = { scale = 1e-10,               dim = [1, 0, 0, 0, 0, 0, 0] }
+au       = { scale = 1.495978707e11,      dim = [1, 0, 0, 0, 0, 0, 0] }
+ly       = { scale = 9.4607304725808e15,  dim = [1, 0, 0, 0, 0, 0, 0] }
 pc       = { scale = 3.0856775814913673e16, dim = [1, 0, 0, 0, 0, 0, 0] }
-Da       = { scale = 1.66053906660e-27, dim = [0, 1, 0, 0, 0, 0, 0] }
-amu      = { scale = 1.66053906660e-27, dim = [0, 1, 0, 0, 0, 0, 0] }
-torr     = { scale = 133.32236842105263, dim = [-1, 1, -2, 0, 0, 0, 0] }
+fermi    = { scale = 1e-15,               dim = [1, 0, 0, 0, 0, 0, 0] }
+
+# Mass
+Da       = { scale = 1.66053906660e-27,   dim = [0, 1, 0, 0, 0, 0, 0] }
+amu      = { scale = 1.66053906660e-27,   dim = [0, 1, 0, 0, 0, 0, 0] }
+
+# Force
+dyn      = { scale = 1e-5,                dim = [1, 1, -2, 0, 0, 0, 0] }
+
+# Pressure
+torr     = { scale = 133.32236842105263,  dim = [-1, 1, -2, 0, 0, 0, 0] }
+mmHg     = { scale = 133.322387415,       dim = [-1, 1, -2, 0, 0, 0, 0] }
+
+# Magnetic
+Gauss    = { scale = 1e-4,                dim = [0, 1, -2, -1, 0, 0, 0] }
+Oe       = { scale = 79.57747154594768,   dim = [-1, 0, 0, 1, 0, 0, 0] }
+
+# Radiation
+Ci       = { scale = 3.7e10,              dim = [0, 0, -1, 0, 0, 0, 0] }
+rad_dose = { scale = 0.01,                dim = [2, 0, -2, 0, 0, 0, 0] }
+rem      = { scale = 0.01,                dim = [2, 0, -2, 0, 0, 0, 0] }
+
+# Astronomical
+Msun     = { scale = 1.98892e30,          dim = [0, 1, 0, 0, 0, 0, 0] }
+Rsun     = { scale = 6.9634e8,            dim = [1, 0, 0, 0, 0, 0, 0] }
+Lsun     = { scale = 3.828e26,            dim = [2, 1, -3, 0, 0, 0, 0] }
