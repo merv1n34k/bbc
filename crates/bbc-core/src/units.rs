@@ -158,7 +158,7 @@ impl UnitRegistry {
             name, Self::available_unit_sets());
     }
 
-    fn register_unit_defs(&mut self, defs: &HashMap<String, TomlUnitDef>, source: UnitSource) {
+    fn register_unit_defs(&mut self, defs: &[(String, TomlUnitDef)], source: UnitSource) {
         for (name, def) in defs {
             let dim_arr = to_dim_array(&def.dim);
             let dv = DimVec::new(dim_arr);
@@ -264,6 +264,23 @@ impl UnitRegistry {
         }
 
         Vec::new()
+    }
+
+    /// Given a unit name, return (base_name, prefix_exponent) if the name
+    /// is a prefixed form of a registered unit, or (name, 0) if it's a direct
+    /// registered unit. Returns None if the name isn't resolvable.
+    pub fn base_unit_name<'a>(&self, name: &'a str) -> Option<(&'a str, i8)> {
+        if self.units.contains_key(name) {
+            return Some((name, 0));
+        }
+        for prefix in PREFIXES {
+            if let Some(base) = name.strip_prefix(prefix.symbol) {
+                if !base.is_empty() && self.units.contains_key(base) {
+                    return Some((base, prefix.exponent));
+                }
+            }
+        }
+        None
     }
 
     pub fn find_derived_name(&self, dim: DimVec) -> Option<&str> {
@@ -379,14 +396,22 @@ impl UnitRegistry {
     }
 }
 
-fn parse_unit_table(table: &toml::map::Map<String, toml::Value>) -> HashMap<String, TomlUnitDef> {
-    table.iter()
-        .map(|(k, v)| {
+fn parse_unit_table(table: &toml::map::Map<String, toml::Value>) -> Vec<(String, TomlUnitDef)> {
+    let mut result = Vec::new();
+    for (k, v) in table {
+        if let toml::Value::Array(arr) = v {
+            for item in arr {
+                let def: TomlUnitDef = item.clone().try_into()
+                    .unwrap_or_else(|e| panic!("bad unit def '{}': {}", k, e));
+                result.push((k.clone(), def));
+            }
+        } else {
             let def: TomlUnitDef = v.clone().try_into()
                 .unwrap_or_else(|e| panic!("bad unit def '{}': {}", k, e));
-            (k.clone(), def)
-        })
-        .collect()
+            result.push((k.clone(), def));
+        }
+    }
+    result
 }
 
 fn to_dim_array(v: &[i8]) -> [i8; 7] {

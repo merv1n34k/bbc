@@ -136,7 +136,22 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
 
     // If quantity has an explicit unit label, use it
     if let Some(ref label) = q.unit {
-        // For affine units: display_val = (SI_val - offset) / scale
+        // For affine units (degC, degF): no auto-prefix, display as-is
+        if label.offset != Rational::from(0) {
+            let display_val = (&q.val - &label.offset) / &label.scale;
+            let num_str = format_with_sigfigs(&display_val, effective_base, scale, q.sigfigs);
+            return format!("{} [{}]", num_str, label.name);
+        }
+
+        // Auto-prefix: for non-pinned units (not from -> conversion),
+        // find best SI prefix for the display value
+        if !label.pinned {
+            if let Some(result) = auto_prefix_unit(&q.val, &label.name, scale, registry) {
+                return result;
+            }
+        }
+
+        // Fallback: display in user's original unit
         let display_val = (&q.val - &label.offset) / &label.scale;
         let num_str = format_with_sigfigs(&display_val, effective_base, scale, q.sigfigs);
         return format!("{} [{}]", num_str, label.name);
@@ -160,6 +175,85 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
 
     // Fall back to raw dimension display
     format!("{} [{}]", num_str, q.dim)
+}
+
+/// Try to auto-prefix a unit label for better readability.
+/// Returns formatted string like "1.5 [km]" or "100 [ng]", or None if
+/// the unit isn't prefixable.
+fn auto_prefix_unit(
+    si_val: &Rational,
+    label_name: &str,
+    scale: u32,
+    registry: &UnitRegistry,
+) -> Option<String> {
+    // Parse the label into parts: "m*s^-2" -> [("m",1), ("s",-2)]
+    let parts = parse_label_parts(label_name);
+    if parts.is_empty() {
+        return None;
+    }
+
+    // Find the first prefixable part (has a base unit in the registry)
+    let prefix_idx = parts.iter().position(|(name, _exp)| {
+        registry.base_unit_name(name).is_some()
+    })?;
+
+    let (part_name, _part_exp) = &parts[prefix_idx];
+    let (base_name, _existing_prefix_exp) = registry.base_unit_name(part_name)?;
+    let (_base_dim, base_scale, _) = registry.resolve(base_name)?;
+
+    // Compute value in base unit of the prefixable component
+    // For compound units, we divide SI value by scales of all OTHER parts
+    // to isolate the prefixable part's contribution
+    let mut other_scale = 1.0;
+    for (i, (name, exp)) in parts.iter().enumerate() {
+        if i == prefix_idx {
+            continue;
+        }
+        let (_, s, _) = registry.resolve(name)?;
+        other_scale *= s.powi(*exp as i32);
+    }
+
+    let base_scale_r = Rational::try_from(base_scale * other_scale)
+        .unwrap_or_else(|_| Rational::from(1));
+    let val_in_base = si_val / &base_scale_r;
+    let (approx, _) = f64::rounding_from(&val_in_base, RoundingMode::Nearest);
+    let (prefix, display_val) = UnitRegistry::best_prefix(approx);
+
+    // Rebuild the unit label with the new prefix on the target part
+    let new_parts: Vec<String> = parts
+        .iter()
+        .enumerate()
+        .map(|(i, (name, exp))| {
+            let unit_name = if i == prefix_idx {
+                format!("{}{}", prefix, base_name)
+            } else {
+                name.to_string()
+            };
+            if *exp == 1 {
+                unit_name
+            } else {
+                format!("{}^{}", unit_name, exp)
+            }
+        })
+        .collect();
+    let unit_str = new_parts.join("*");
+
+    Some(format!("{} [{}]", format_f64_trimmed(display_val, scale), unit_str))
+}
+
+/// Parse a unit label string like "m*s^-2" into (name, exponent) pairs.
+fn parse_label_parts(label: &str) -> Vec<(&str, i32)> {
+    label
+        .split('*')
+        .map(|part| {
+            if let Some((name, exp_str)) = part.split_once('^') {
+                let exp: i32 = exp_str.parse().unwrap_or(1);
+                (name, exp)
+            } else {
+                (part, 1)
+            }
+        })
+        .collect()
 }
 
 fn format_with_sigfigs(val: &Rational, obase: u32, scale: u32, sigfigs: Option<u32>) -> String {

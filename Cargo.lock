@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "bbc-bitwise"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "bbc-core",
  "malachite-base",
@@ -85,14 +85,14 @@ dependencies = [
 
 [[package]]
 name = "bbc-calculus"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "bbc-core",
 ]
 
 [[package]]
 name = "bbc-cli"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "ariadne",
  "atty",
@@ -107,7 +107,7 @@ dependencies = [
 
 [[package]]
 name = "bbc-core"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "malachite",
  "malachite-base",
@@ -120,14 +120,14 @@ dependencies = [
 
 [[package]]
 name = "bbc-linalg"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "bbc-core",
 ]
 
 [[package]]
 name = "bbc-symbolic"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "bbc-core",
 ]

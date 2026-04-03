@@ -8,6 +8,7 @@ pub struct UnitExpr {
 pub struct UnitPart {
     pub name: String,
     pub exp: i8,
+    pub dim_hint: Option<UnitExpr>,
 }
 
 #[derive(Debug, Clone)]

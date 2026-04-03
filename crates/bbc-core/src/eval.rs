@@ -498,6 +498,7 @@ impl Evaluator {
             name: format_unit_expr(unit),
             scale: scale_r,
             offset: offset_r,
+            pinned: false,
         };
         Ok(Value::Quantity(Quantity::with_unit(si_val, dim, label)))
     }
@@ -528,6 +529,7 @@ impl Evaluator {
             name: target_name,
             scale: target_scale_r,
             offset: target_offset_r,
+            pinned: true,
         };
         // Keep val in SI, attach unit label for display
         Ok(Value::Quantity(Quantity::with_unit(q.val, q.dim, label)))
@@ -535,19 +537,24 @@ impl Evaluator {
 
     /// Resolve a parsed UnitExpr to (DimVec, combined_scale_to_SI, offset).
     /// Offset is only non-zero for single affine units (e.g., degC, degF).
+    /// When a UnitPart has a `dim_hint`, uses `resolve_all` and picks the
+    /// definition whose dimension matches the hint.
     fn resolve_unit_expr(&self, unit: &UnitExpr) -> Result<(DimVec, f64, f64), Error> {
         let mut combined_dim = DimVec::DIMENSIONLESS;
         let mut combined_scale = 1.0;
         let mut combined_offset = 0.0;
 
         for part in &unit.parts {
-            let (dim, scale, offset) =
+            let (dim, scale, offset) = if let Some(ref hint) = part.dim_hint {
+                let hint_dim = self.resolve_hint_dim(hint)?;
+                self.resolve_unit_with_hint(&part.name, hint_dim)?
+            } else {
                 self.registry.resolve(&part.name).ok_or_else(|| Error::UnknownUnit {
                     name: part.name.clone(),
                     span: None,
-                })?;
+                })?
+            };
 
-            // Offset only valid for single unit with exp=1
             if offset != 0.0 && unit.parts.len() == 1 && part.exp == 1 {
                 combined_offset = offset;
             }
@@ -565,6 +572,47 @@ impl Evaluator {
         }
 
         Ok((combined_dim, combined_scale, combined_offset))
+    }
+
+    /// Resolve the dimension of a hint unit expression (scale is ignored).
+    fn resolve_hint_dim(&self, hint: &UnitExpr) -> Result<DimVec, Error> {
+        let mut dim = DimVec::DIMENSIONLESS;
+        for part in &hint.parts {
+            let (d, _, _) = self.registry.resolve(&part.name).ok_or_else(|| Error::UnknownUnit {
+                name: part.name.clone(),
+                span: None,
+            })?;
+            if part.exp == 1 {
+                dim = dim.mul(d);
+            } else if part.exp == -1 {
+                dim = dim.div(d);
+            } else {
+                dim = dim.mul(d.pow(part.exp));
+            }
+        }
+        Ok(dim)
+    }
+
+    /// Resolve a unit name using `resolve_all`, picking the definition whose
+    /// dimension matches `hint_dim`. Falls back to first if none match.
+    fn resolve_unit_with_hint(
+        &self,
+        name: &str,
+        hint_dim: DimVec,
+    ) -> Result<(DimVec, f64, f64), Error> {
+        let candidates = self.registry.resolve_all(name);
+        if candidates.is_empty() {
+            return Err(Error::UnknownUnit {
+                name: name.to_string(),
+                span: None,
+            });
+        }
+        for &candidate in &candidates {
+            if candidate.0.compatible(hint_dim) {
+                return Ok(candidate);
+            }
+        }
+        Ok(candidates[0])
     }
 
     fn call_builtin(&self, name: &str, args: &[Value]) -> Result<Value, Error> {

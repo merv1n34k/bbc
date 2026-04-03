@@ -7,6 +7,9 @@ pub struct UnitLabel {
     pub name: String,
     pub scale: Rational,
     pub offset: Rational,
+    /// When true, the unit was explicitly requested via `->` conversion
+    /// and should not be auto-prefixed.
+    pub pinned: bool,
 }
 
 /// A quantity: number + dimension vector.

@@ -393,7 +393,15 @@ impl Parser {
                         }
                     }
 
-                    parts.push(UnitPart { name, exp });
+                    // Check for |hint: bp|g/mol
+                    let dim_hint = if matches!(self.peek(), Token::Pipe) {
+                        self.advance();
+                        Some(self.parse_unit_expr()?)
+                    } else {
+                        None
+                    };
+
+                    parts.push(UnitPart { name, exp, dim_hint });
                 }
                 _ => break,
             }
