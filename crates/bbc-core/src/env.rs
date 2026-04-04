@@ -185,7 +185,7 @@ impl Env {
                 use malachite_base::num::conversion::traits::RoundingFrom;
                 use malachite_base::rounding_modes::RoundingMode;
                 let (val, _) = u32::rounding_from(&q.val, RoundingMode::Floor);
-                if val < 2 || val > 36 {
+                if !(2..=36).contains(&val) {
                     10
                 } else {
                     val

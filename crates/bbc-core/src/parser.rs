@@ -402,6 +402,7 @@ impl Parser {
     }
 
     /// Parse unit expression inside brackets: `m*s^-2`, `kg`, `km/h`
+    #[allow(clippy::while_let_loop)]
     fn parse_unit_expr(&mut self) -> Result<UnitExpr, Error> {
         let mut parts = Vec::new();
         let mut negate_next = false;

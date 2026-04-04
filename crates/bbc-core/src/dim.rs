@@ -28,38 +28,40 @@ impl DimVec {
         ((self.0 >> ((6 - idx) * 8)) & 0xFF) as u8 as i8
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn mul(self, other: DimVec) -> DimVec {
         let mut result = [0i8; 7];
-        for i in 0..7 {
-            result[i] = self.get(i).wrapping_add(other.get(i));
+        for (i, r) in result.iter_mut().enumerate() {
+            *r = self.get(i).wrapping_add(other.get(i));
         }
         DimVec::new(result)
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn div(self, other: DimVec) -> DimVec {
         let mut result = [0i8; 7];
-        for i in 0..7 {
-            result[i] = self.get(i).wrapping_sub(other.get(i));
+        for (i, r) in result.iter_mut().enumerate() {
+            *r = self.get(i).wrapping_sub(other.get(i));
         }
         DimVec::new(result)
     }
 
     pub fn pow(self, n: i8) -> DimVec {
         let mut result = [0i8; 7];
-        for i in 0..7 {
-            result[i] = self.get(i).wrapping_mul(n);
+        for (i, r) in result.iter_mut().enumerate() {
+            *r = self.get(i).wrapping_mul(n);
         }
         DimVec::new(result)
     }
 
     pub fn root(self, n: i8) -> Option<DimVec> {
         let mut result = [0i8; 7];
-        for i in 0..7 {
+        for (i, r) in result.iter_mut().enumerate() {
             let e = self.get(i);
             if e % n != 0 {
                 return None;
             }
-            result[i] = e / n;
+            *r = e / n;
         }
         Some(DimVec::new(result))
     }
@@ -74,8 +76,8 @@ impl DimVec {
 
     pub fn to_array(self) -> [i8; 7] {
         let mut arr = [0i8; 7];
-        for i in 0..7 {
-            arr[i] = self.get(i);
+        for (i, a) in arr.iter_mut().enumerate() {
+            *a = self.get(i);
         }
         arr
     }
@@ -91,13 +93,13 @@ impl std::fmt::Display for DimVec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let names = ["m", "kg", "s", "A", "K", "mol", "cd"];
         let mut parts = Vec::new();
-        for i in 0..7 {
+        for (i, name) in names.iter().enumerate() {
             let e = self.get(i);
             if e != 0 {
                 if e == 1 {
-                    parts.push(names[i].to_string());
+                    parts.push((*name).to_string());
                 } else {
-                    parts.push(format!("{}^{}", names[i], e));
+                    parts.push(format!("{}^{}", name, e));
                 }
             }
         }

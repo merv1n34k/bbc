@@ -246,47 +246,45 @@ fn lex_number(input: &str, start: usize) -> Result<(Token, usize), Error> {
     // Check for base prefix: <digits>x<alphanumeric>
     if i < bytes.len() && bytes[i] == b'x' && i > digits_start {
         let base_str = &input[digits_start..i];
-        if let Ok(base) = base_str.parse::<u32>() {
-            if base >= 2
-                && base <= 36
-                && i + 1 < bytes.len()
-                && is_base_digit(bytes[i + 1], base)
+        if let Ok(base) = base_str.parse::<u32>()
+            && (2..=36).contains(&base)
+            && i + 1 < bytes.len()
+            && is_base_digit(bytes[i + 1], base)
+        {
+            i += 1; // skip 'x'
+            let dstart = i;
+            while i < bytes.len() && is_base_digit(bytes[i], base) {
+                i += 1;
+            }
+            let mut digits = input[dstart..i].to_uppercase();
+            // Check for base fraction: 16xFF.8
+            if i < bytes.len() && bytes[i] == b'.'
+                && i + 1 < bytes.len() && is_base_digit(bytes[i + 1], base)
             {
-                i += 1; // skip 'x'
-                let dstart = i;
+                digits.push('.');
+                i += 1; // skip '.'
                 while i < bytes.len() && is_base_digit(bytes[i], base) {
+                    digits.push(bytes[i].to_ascii_uppercase() as char);
                     i += 1;
                 }
-                let mut digits = input[dstart..i].to_uppercase();
-                // Check for base fraction: 16xFF.8
-                if i < bytes.len() && bytes[i] == b'.'
-                    && i + 1 < bytes.len() && is_base_digit(bytes[i + 1], base)
-                {
-                    digits.push('.');
-                    i += 1; // skip '.'
-                    while i < bytes.len() && is_base_digit(bytes[i], base) {
-                        digits.push(bytes[i].to_ascii_uppercase() as char);
-                        i += 1;
-                    }
-                }
-                for ch in digits.chars() {
-                    if ch == '.' {
-                        continue;
-                    }
-                    let d = if ch.is_ascii_digit() {
-                        ch as u32 - '0' as u32
-                    } else {
-                        ch as u32 - 'A' as u32 + 10
-                    };
-                    if d >= base {
-                        return Err(Error::InvalidBaseLiteral {
-                            msg: format!("digit '{}' invalid for base {}", ch, base),
-                            span: Some(Span { start, end: i }),
-                        });
-                    }
-                }
-                return Ok((Token::BasedNumber(base, digits), i));
             }
+            for ch in digits.chars() {
+                if ch == '.' {
+                    continue;
+                }
+                let d = if ch.is_ascii_digit() {
+                    ch as u32 - '0' as u32
+                } else {
+                    ch as u32 - 'A' as u32 + 10
+                };
+                if d >= base {
+                    return Err(Error::InvalidBaseLiteral {
+                        msg: format!("digit '{}' invalid for base {}", ch, base),
+                        span: Some(Span { start, end: i }),
+                    });
+                }
+            }
+            return Ok((Token::BasedNumber(base, digits), i));
         }
     }
 

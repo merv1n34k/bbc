@@ -75,10 +75,9 @@ impl Evaluator {
                 } else {
                     val
                 };
-                if let Some(b) = base {
-                    if let Value::Quantity(ref mut q) = result {
-                        q.display_base = Some(*b);
-                    }
+                if let Some(b) = base
+                    && let Value::Quantity(ref mut q) = result {
+                    q.display_base = Some(*b);
                 }
                 Ok(result)
             }
@@ -245,7 +244,7 @@ impl Evaluator {
 
     fn parse_decimal(&self, s: &str, sigfig_mode: bool) -> Result<Value, Error> {
         // Handle scientific notation
-        if let Some(e_pos) = s.find(|c: char| c == 'e' || c == 'E') {
+        if let Some(e_pos) = s.find(['e', 'E']) {
             let mantissa_str = &s[..e_pos];
             let exp_str = &s[e_pos + 1..];
             let mantissa = self.parse_decimal_simple(mantissa_str)?;
@@ -257,7 +256,7 @@ impl Evaluator {
             let ten = Rational::from(10);
             let scale = rational_pow(&ten, exp);
             let mut q = mantissa.into_quantity().unwrap();
-            q.val = q.val * scale;
+            q.val *= scale;
             // Sigfigs from mantissa digits
             if sigfig_mode {
                 q.sigfigs = Some(count_sigfigs(mantissa_str));
@@ -266,13 +265,10 @@ impl Evaluator {
         }
 
         let mut val = self.parse_decimal_simple(s)?;
-        if sigfig_mode {
-            if let Value::Quantity(ref mut q) = val {
-                if s.contains('.') {
-                    q.sigfigs = Some(count_sigfigs(s));
-                }
-                // integers are exact (None)
-            }
+        if sigfig_mode
+            && let Value::Quantity(ref mut q) = val
+            && s.contains('.') {
+            q.sigfigs = Some(count_sigfigs(s));
         }
         Ok(val)
     }
@@ -325,8 +321,8 @@ impl Evaluator {
             let mut place = Rational::from(1);
             for ch in frac_part.chars() {
                 let d = digit_value(ch);
-                place = place * &base_r;
-                frac_val = frac_val + Rational::from_signeds(d as i64, 1) / &place;
+                place *= &base_r;
+                frac_val += Rational::from_signeds(d as i64, 1) / &place;
             }
             Ok(Value::from_rational(int_val + frac_val))
         } else {
@@ -402,7 +398,7 @@ impl Evaluator {
             BinOp::Div => {
                 let l = require_quantity(left, "division")?;
                 let r = require_quantity(right, "division")?;
-                if r.val == Rational::from(0) {
+                if r.val == 0 {
                     return Err(Error::DivisionByZero { span: None });
                 }
                 let sigfigs = combine_sigfigs_mul(l.sigfigs, r.sigfigs);
@@ -420,7 +416,7 @@ impl Evaluator {
                         span: None,
                     });
                 }
-                if r.val == Rational::from(0) {
+                if r.val == 0 {
                     return Err(Error::DivisionByZero { span: None });
                 }
                 // a % b = a - floor(a/b) * b
@@ -716,7 +712,7 @@ impl Evaluator {
             "sqrt" => {
                 require_n_args(args, 1, "sqrt")?;
                 let q = require_quantity_ref(&args[0], "sqrt")?;
-                let new_dim = q.dim.root(2).ok_or_else(|| Error::InvalidDimensionRoot {
+                let new_dim = q.dim.root(2).ok_or(Error::InvalidDimensionRoot {
                     dim: q.dim,
                     n: 2,
                     span: None,
@@ -731,7 +727,7 @@ impl Evaluator {
             "cbrt" => {
                 require_n_args(args, 1, "cbrt")?;
                 let q = require_quantity_ref(&args[0], "cbrt")?;
-                let new_dim = q.dim.root(3).ok_or_else(|| Error::InvalidDimensionRoot {
+                let new_dim = q.dim.root(3).ok_or(Error::InvalidDimensionRoot {
                     dim: q.dim,
                     n: 3,
                     span: None,
@@ -748,7 +744,7 @@ impl Evaluator {
             "abs" => {
                 require_n_args(args, 1, "abs")?;
                 let q = require_quantity(args[0].clone(), "abs")?;
-                let val = if q.val < Rational::from(0) {
+                let val = if q.val < 0 {
                     -q.val
                 } else {
                     q.val
@@ -841,7 +837,7 @@ fn rational_pow(base: &Rational, exp: i32) -> Rational {
     let mut e = exp as u32;
     while e > 0 {
         if e & 1 == 1 {
-            result = result * &b;
+            result *= &b;
         }
         b = b.clone() * &b;
         e >>= 1;

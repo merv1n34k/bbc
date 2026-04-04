@@ -20,7 +20,7 @@ fn format_rational_base10(val: &Rational, scale: u32) -> String {
         return n.to_string();
     }
 
-    let negative = *val < Rational::from(0);
+    let negative = *val < 0;
     let abs_val = if negative {
         -val.clone()
     } else {
@@ -34,12 +34,12 @@ fn format_rational_base10(val: &Rational, scale: u32) -> String {
     let mut remainder = frac;
     let ten = Rational::from(10);
     for _ in 0..scale {
-        remainder = remainder * ten.clone();
+        remainder *= ten.clone();
         let (digit, _) = malachite_nz::integer::Integer::rounding_from(remainder.clone(), RoundingMode::Floor);
         let d: u8 = u8::rounding_from(&Rational::from(digit.clone()), RoundingMode::Floor).0;
         digits.push((b'0' + d) as char);
-        remainder = remainder - Rational::from(digit);
-        if remainder == Rational::from(0) {
+        remainder -= Rational::from(digit);
+        if remainder == 0 {
             break;
         }
     }
@@ -54,7 +54,7 @@ fn format_rational_base10(val: &Rational, scale: u32) -> String {
 }
 
 fn format_rational_arbitrary_base(val: &Rational, base: u32, scale: u32) -> String {
-    let negative = *val < Rational::from(0);
+    let negative = *val < 0;
     let abs_val = if negative {
         -val.clone()
     } else {
@@ -70,12 +70,12 @@ fn format_rational_arbitrary_base(val: &Rational, base: u32, scale: u32) -> Stri
     let mut remainder = frac;
     let base_r = Rational::from(base as i64);
     for _ in 0..scale {
-        remainder = remainder * base_r.clone();
+        remainder *= base_r.clone();
         let (digit, _) = malachite_nz::integer::Integer::rounding_from(remainder.clone(), RoundingMode::Floor);
         let d: u8 = u8::rounding_from(&Rational::from(digit.clone()), RoundingMode::Floor).0;
         digits.push(digit_char(d));
-        remainder = remainder - Rational::from(digit);
-        if remainder == Rational::from(0) {
+        remainder -= Rational::from(digit);
+        if remainder == 0 {
             break;
         }
     }
@@ -93,23 +93,23 @@ fn format_rational_arbitrary_base(val: &Rational, base: u32, scale: u32) -> Stri
 fn format_integer_in_base(val: &malachite_nz::integer::Integer, base: u32) -> String {
     use malachite_nz::integer::Integer;
 
-    if *val == Integer::from(0) {
+    if *val == 0 {
         return "0".to_string();
     }
 
     let mut n = val.clone();
-    let negative = n < Integer::from(0);
+    let negative = n < 0;
     if negative {
         n = -n;
     }
 
     let base_i = Integer::from(base);
     let mut digits = Vec::new();
-    while n > Integer::from(0) {
+    while n > 0 {
         let remainder = &n % &base_i;
         let (d, _) = u8::rounding_from(&Rational::from(remainder), RoundingMode::Floor);
         digits.push(digit_char(d));
-        n = n / &base_i;
+        n /= &base_i;
     }
 
     digits.reverse();
@@ -136,7 +136,7 @@ pub fn format_scientific(val: f64, scale: u32) -> String {
     let abs = val.abs();
     let exp = abs.log10().floor() as i32;
     let mantissa = val / 10f64.powi(exp);
-    let prec = (scale as usize).min(15).max(1);
+    let prec = (scale as usize).clamp(1, 15);
     let m_str = format!("{:.prec$}", mantissa, prec = prec);
     let m_str = m_str.trim_end_matches('0');
     let m_str = m_str.trim_end_matches('.');
@@ -152,7 +152,7 @@ fn needs_scientific(val: f64) -> bool {
         return false;
     }
     let abs = val.abs();
-    abs < 0.01 || abs >= 999.0
+    !(0.01..999.0).contains(&abs)
 }
 
 pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegistry, views: &ViewSet) -> String {
@@ -177,7 +177,7 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
     // If quantity has an explicit unit label, use it
     if let Some(ref label) = q.unit {
         // For affine units (degC, degF): no auto-prefix, display as-is
-        if label.offset != Rational::from(0) {
+        if label.offset != 0 {
             let display_val = (&q.val - &label.offset) / &label.scale;
             let num_str = format_with_sigfigs(&display_val, effective_base, scale, q.sigfigs);
             let formatted = format!("{} [{}]", num_str, label.name);
@@ -188,18 +188,17 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
         }
 
         // Auto-prefix: for non-pinned units when adjust is on
-        if use_adjust && !label.pinned {
-            if let Some(result) = auto_prefix_unit(&q.val, &label.name, scale, registry) {
-                if use_scientific {
-                    let display_val = &q.val / &label.scale;
-                    let (approx, _) = f64::rounding_from(&display_val, RoundingMode::Nearest);
-                    if needs_scientific(approx) {
-                        let sci_num = format_scientific(approx, scale);
-                        return format!("{} [{}]", sci_num, label.name);
-                    }
+        if use_adjust && !label.pinned
+            && let Some(result) = auto_prefix_unit(&q.val, &label.name, scale, registry) {
+            if use_scientific {
+                let display_val = &q.val / &label.scale;
+                let (approx, _) = f64::rounding_from(&display_val, RoundingMode::Nearest);
+                if needs_scientific(approx) {
+                    let sci_num = format_scientific(approx, scale);
+                    return format!("{} [{}]", sci_num, label.name);
                 }
-                return result;
             }
+            return result;
         }
 
         // Fallback: display in user's original unit
@@ -219,24 +218,24 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
     }
 
     // Try to find a derived unit name (only when adjust is on)
-    if use_adjust {
-        if let Some(name) = registry.find_derived_name(q.dim) {
-            let (approx, _) = f64::rounding_from(&q.val, RoundingMode::Nearest);
-            let (prefix, display_val) = UnitRegistry::best_prefix(approx);
-            if !prefix.is_empty() {
-                let formatted = format!("{} [{}{}]", format_f64_trimmed(display_val, scale), prefix, name);
-                if use_scientific && needs_scientific(display_val) {
-                    let sci_num = format_scientific(display_val, scale);
-                    return format!("{} [{}{}]", sci_num, prefix, name);
-                }
-                return formatted;
-            }
-            let formatted = format!("{} [{}]", num_str, name);
-            if use_scientific {
-                return apply_scientific_to_formatted(&q.val, &formatted, scale);
+    if use_adjust
+        && let Some(name) = registry.find_derived_name(q.dim)
+    {
+        let (approx, _) = f64::rounding_from(&q.val, RoundingMode::Nearest);
+        let (prefix, display_val) = UnitRegistry::best_prefix(approx);
+        if !prefix.is_empty() {
+            let formatted = format!("{} [{}{}]", format_f64_trimmed(display_val, scale), prefix, name);
+            if use_scientific && needs_scientific(display_val) {
+                let sci_num = format_scientific(display_val, scale);
+                return format!("{} [{}{}]", sci_num, prefix, name);
             }
             return formatted;
         }
+        let formatted = format!("{} [{}]", num_str, name);
+        if use_scientific {
+            return apply_scientific_to_formatted(&q.val, &formatted, scale);
+        }
+        return formatted;
     }
 
     // Fall back to raw dimension display
@@ -294,7 +293,7 @@ fn auto_prefix_unit(
             continue;
         }
         let (_, s, _) = registry.resolve(name)?;
-        other_scale *= s.powi(*exp as i32);
+        other_scale *= s.powi(*exp);
     }
 
     let base_scale_r = Rational::try_from(base_scale * other_scale)

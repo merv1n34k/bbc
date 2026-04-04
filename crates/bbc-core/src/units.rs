@@ -223,22 +223,20 @@ impl UnitRegistry {
     }
 
     pub fn resolve(&self, unit_str: &str) -> Option<(DimVec, f64, f64)> {
-        if let Some(defs) = self.units.get(unit_str) {
-            if let Some(def) = defs.first() {
-                return Some((def.dim, def.scale, def.offset));
-            }
+        if let Some(defs) = self.units.get(unit_str)
+            && let Some(def) = defs.first()
+        {
+            return Some((def.dim, def.scale, def.offset));
         }
 
         for prefix in PREFIXES {
-            if let Some(base) = unit_str.strip_prefix(prefix.symbol) {
-                if !base.is_empty() {
-                    if let Some(defs) = self.units.get(base) {
-                        if let Some(def) = defs.first() {
-                            let prefix_scale = 10f64.powi(prefix.exponent as i32);
-                            return Some((def.dim, def.scale * prefix_scale, def.offset));
-                        }
-                    }
-                }
+            if let Some(base) = unit_str.strip_prefix(prefix.symbol)
+                && !base.is_empty()
+                && let Some(defs) = self.units.get(base)
+                && let Some(def) = defs.first()
+            {
+                let prefix_scale = 10f64.powi(prefix.exponent as i32);
+                return Some((def.dim, def.scale * prefix_scale, def.offset));
             }
         }
 
@@ -251,15 +249,14 @@ impl UnitRegistry {
         }
 
         for prefix in PREFIXES {
-            if let Some(base) = unit_str.strip_prefix(prefix.symbol) {
-                if !base.is_empty() {
-                    if let Some(defs) = self.units.get(base) {
-                        let prefix_scale = 10f64.powi(prefix.exponent as i32);
-                        return defs.iter()
-                            .map(|d| (d.dim, d.scale * prefix_scale, d.offset))
-                            .collect();
-                    }
-                }
+            if let Some(base) = unit_str.strip_prefix(prefix.symbol)
+                && !base.is_empty()
+                && let Some(defs) = self.units.get(base)
+            {
+                let prefix_scale = 10f64.powi(prefix.exponent as i32);
+                return defs.iter()
+                    .map(|d| (d.dim, d.scale * prefix_scale, d.offset))
+                    .collect();
             }
         }
 
@@ -274,10 +271,11 @@ impl UnitRegistry {
             return Some((name, 0));
         }
         for prefix in PREFIXES {
-            if let Some(base) = name.strip_prefix(prefix.symbol) {
-                if !base.is_empty() && self.units.contains_key(base) {
-                    return Some((base, prefix.exponent));
-                }
+            if let Some(base) = name.strip_prefix(prefix.symbol)
+                && !base.is_empty()
+                && self.units.contains_key(base)
+            {
+                return Some((base, prefix.exponent));
             }
         }
         None
@@ -358,34 +356,32 @@ impl UnitRegistry {
     }
 
     pub fn describe_unit(&self, name: &str) -> Option<String> {
-        if let Some(defs) = self.units.get(name) {
-            if let Some(def) = defs.first() {
-                let source = match &def.source {
-                    UnitSource::Si => "SI base",
-                    UnitSource::Common => "common",
-                    UnitSource::Set(s) => s.as_str(),
-                    UnitSource::Runtime => "runtime",
-                };
-                return Some(format!(
-                    "{}: scale={}, dim={}, source={}",
-                    def.name, def.scale, def.dim, source
-                ));
-            }
+        if let Some(defs) = self.units.get(name)
+            && let Some(def) = defs.first()
+        {
+            let source = match &def.source {
+                UnitSource::Si => "SI base",
+                UnitSource::Common => "common",
+                UnitSource::Set(s) => s.as_str(),
+                UnitSource::Runtime => "runtime",
+            };
+            return Some(format!(
+                "{}: scale={}, dim={}, source={}",
+                def.name, def.scale, def.dim, source
+            ));
         }
         // Check with prefix
         for prefix in PREFIXES {
-            if let Some(base) = name.strip_prefix(prefix.symbol) {
-                if !base.is_empty() {
-                    if let Some(defs) = self.units.get(base) {
-                        if let Some(def) = defs.first() {
-                            let prefix_scale = 10f64.powi(prefix.exponent as i32);
-                            return Some(format!(
-                                "{}: scale={} ({}*{}), dim={}",
-                                name, def.scale * prefix_scale, prefix.symbol, def.name, def.dim
-                            ));
-                        }
-                    }
-                }
+            if let Some(base) = name.strip_prefix(prefix.symbol)
+                && !base.is_empty()
+                && let Some(defs) = self.units.get(base)
+                && let Some(def) = defs.first()
+            {
+                let prefix_scale = 10f64.powi(prefix.exponent as i32);
+                return Some(format!(
+                    "{}: scale={} ({}*{}), dim={}",
+                    name, def.scale * prefix_scale, prefix.symbol, def.name, def.dim
+                ));
             }
         }
         None
