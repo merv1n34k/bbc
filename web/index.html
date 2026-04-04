@@ -7,51 +7,44 @@
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: #1a1a1a;
+  color: #c8b89a;
   font-family: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
 }
-#quote {
-  text-align: center;
-  color: #7a7a9e;
-  font-style: italic;
-  font-size: 0.85rem;
-  max-width: 600px;
-  min-height: 2.5em;
-  margin-bottom: 1.5rem;
-  transition: opacity 0.6s ease;
+main {
+  flex: 1;
+  display: flex;
+  padding: 3rem 4rem;
+  gap: 4rem;
 }
-#repl-container {
-  width: 100%;
-  max-width: 700px;
-  background: #16213e;
-  border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+
+#terminal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 #output {
-  max-height: 60vh;
+  flex: 1;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
   font-size: 0.9rem;
-  line-height: 1.6;
+  line-height: 1.7;
 }
-.line-input { color: #64ffda; }
-.line-output { color: #e0e0e0; }
-.line-error { color: #ff6b6b; }
+.line-input { color: #d4a96a; }
+.line-output { color: #c8b89a; }
+.line-error { color: #a05a4a; }
 #input-line {
   display: flex;
   align-items: center;
   margin-top: 0.25rem;
 }
 #prompt {
-  color: #64ffda;
+  color: #d4a96a;
   margin-right: 0.5ch;
   user-select: none;
 }
@@ -60,61 +53,153 @@ body {
   background: transparent;
   border: none;
   outline: none;
-  color: #64ffda;
+  color: #d4a96a;
   font-family: inherit;
   font-size: 0.9rem;
-  caret-color: #64ffda;
+  caret-color: #d4a96a;
 }
-#hints {
-  text-align: center;
-  color: #4a4a6e;
-  font-size: 0.75rem;
-  margin-top: 1.5rem;
-  max-width: 700px;
-  line-height: 1.8;
+
+#description {
+  width: 340px;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: #7a6f60;
+  line-height: 1.7;
+  padding-top: 0.2rem;
+  overflow-y: auto;
 }
-#hints span {
-  display: inline-block;
-  background: #16213e;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  margin: 0.15rem;
+#description h1 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #c8b89a;
+  margin-bottom: 0.8rem;
 }
+#description p {
+  color: #8a7e6e;
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+#description h2 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #9a8a72;
+  margin-top: 1.2rem;
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+#description code {
+  color: #a89880;
+}
+#description .example {
+  color: #5e5548;
+  margin: 0.2rem 0;
+}
+#description .example span {
+  color: #a89880;
+}
+
 footer {
-  margin-top: 2rem;
-  text-align: center;
-  color: #4a4a6e;
-  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem 4rem;
+  font-size: 0.75rem;
+  color: #4a4440;
+  gap: 1.5rem;
 }
-footer a { color: #5a5a8e; text-decoration: none; }
-footer a:hover { color: #7a7aae; }
+#footer-quote {
+  flex: 1;
+  text-align: center;
+  font-style: italic;
+}
+#footer-right {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-shrink: 0;
+}
+#footer-right a {
+  color: #5e5548;
+  text-decoration: none;
+}
+#footer-right a:hover { color: #7a6f60; }
+#footer-right svg {
+  width: 16px;
+  height: 16px;
+  fill: #5e5548;
+  vertical-align: middle;
+  transition: fill 0.2s;
+}
+#footer-right a:hover svg { fill: #7a6f60; }
+
+@media (max-width: 800px) {
+  main {
+    flex-direction: column;
+    padding: 1.5rem;
+    gap: 2rem;
+  }
+  #description { width: 100%; }
+  footer { padding: 1rem 1.5rem; }
+}
 </style>
 </head>
 <body>
 
-<div id="quote"></div>
-
-<div id="repl-container">
-  <div id="output"></div>
-  <div id="input-line">
-    <span id="prompt">&gt;</span>
-    <input id="input" type="text" autofocus autocomplete="off" spellcheck="false">
+<main>
+  <div id="terminal">
+    <div id="output"></div>
+    <div id="input-line">
+      <span id="prompt">&gt;</span>
+      <input id="input" type="text" autofocus autocomplete="off" spellcheck="false">
+    </div>
   </div>
-</div>
 
-<div id="hints">
-  Try:
-  <span>1/3 * 3</span>
-  <span>5 [kg] * 9.8 [m*s^-2]</span>
-  <span>100 [km] -&gt; [mi]</span>
-  <span>16xFF &gt;&gt; 2 -&gt; 16x</span>
-  <span>sin(pi/4)</span>
-  <span>c</span>
-  <span>units imperial</span>
-  <span>view scientific</span>
-</div>
+  <div id="description">
+    <h1>BBC -- Better BC</h1>
+    <p>A batteries-included calculator that runs in the browser. All numbers are exact rationals -- no floating-point rounding. It knows SI units, catches dimension mismatches, converts bases 2-36, and understands LaTeX input. Type an expression on the left to try it.</p>
 
-<footer>MIT License | <a href="https://github.com/merv1n34k/bbc">GitHub</a></footer>
+    <h2>Arithmetic</h2>
+    <div class="example"><span>1/3 * 3</span> &rarr; 1</div>
+    <div class="example"><span>2^64</span> &rarr; 18446744073709551616</div>
+
+    <h2>Units</h2>
+    <div class="example"><span>5 [kg] * 9.8 [m*s^-2]</span> &rarr; 49 [N]</div>
+    <div class="example"><span>100 [km] -&gt; [mi]</span> &rarr; 62.137... [mi]</div>
+    <div class="example"><span>1500 [m]</span> &rarr; 1.5 [km]</div>
+
+    <h2>Bases</h2>
+    <div class="example"><span>16xFF</span> &rarr; 255</div>
+    <div class="example"><span>255 -&gt; 16x</span> &rarr; 16xFF</div>
+
+    <h2>Constants</h2>
+    <div class="example"><span>c</span> &rarr; 299792458 [m*s^-1]</div>
+    <div class="example"><span>pi</span> &rarr; 3.14159265...</div>
+
+    <h2>Functions</h2>
+    <div class="example"><span>sin cos tan asin acos atan atan2</span></div>
+    <div class="example"><span>sqrt cbrt exp ln log abs floor ceil</span></div>
+
+    <h2>Commands</h2>
+    <div class="example"><code>units imperial</code> -- load unit set</div>
+    <div class="example"><code>unit smoot = 67 [in]</code> -- custom unit</div>
+    <div class="example"><code>view scientific</code> -- display mode</div>
+
+    <h2>LaTeX</h2>
+    <div class="example"><span>\frac{1}{3} + \frac{1}{6}</span> &rarr; 0.5</div>
+    <div class="example"><span>\sqrt{144}</span> &rarr; 12</div>
+  </div>
+</main>
+
+<footer>
+  <div id="footer-quote"></div>
+  <div id="footer-right">
+    <span>MIT</span>
+    <a href="https://github.com/merv1n34k/bbc" aria-label="GitHub">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    </a>
+  </div>
+</footer>
 
 <script type="module">
 import init, { WasmEvaluator } from './pkg/bbc_wasm.js';
@@ -128,20 +213,8 @@ const quotes = [
   ['"Mathematics, rightly viewed, possesses not only truth, but supreme beauty."', 'Russell'],
 ];
 
-const quoteEl = document.getElementById('quote');
-let quoteIdx = Math.floor(Math.random() * quotes.length);
-
-function showQuote() {
-  quoteEl.style.opacity = '0';
-  setTimeout(() => {
-    const [text, author] = quotes[quoteIdx];
-    quoteEl.textContent = text + ' -- ' + author;
-    quoteEl.style.opacity = '1';
-    quoteIdx = (quoteIdx + 1) % quotes.length;
-  }, 600);
-}
-showQuote();
-setInterval(showQuote, 15000);
+const q = quotes[Math.floor(Math.random() * quotes.length)];
+document.getElementById('footer-quote').textContent = q[0] + ' -- ' + q[1];
 
 async function main() {
   await init();
