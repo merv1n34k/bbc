@@ -83,10 +83,19 @@ Built-in constants with proper units:
 ```
 > c
 299792458 [m*s^-1]
-> h
-6.62607015e-34 [m^2*kg*s^-1]
 > pi
 3.14159265358979...
+> k_B
+0 [m^2*kg*s^-2*K^-1]
+```
+
+Small constants like `h` and `k_B` need `--view scientific` to display properly:
+
+```bash
+bbc --view scientific -e 'h'
+# 6.62607015e-34 [m^2*kg*s^-1]
+bbc --view scientific -e 'k_B'
+# 1.380649e-23 [m^2*kg*s^-2*K^-1]
 ```
 
 Constants are immutable:
@@ -127,7 +136,7 @@ Paste LaTeX expressions directly:
 ### Built-in functions
 
 ```
-sin, cos, tan, asin, acos, atan
+sin, cos, tan, asin, acos, atan, atan2
 sqrt, cbrt, exp, ln, log
 abs, floor, ceil, round
 min, max
@@ -165,8 +174,8 @@ true
 --obase <N>           Output base (2-36, default 10)
 --scale <N>           Decimal precision (default 20)
 --units <SETS>        Load unit sets (comma-separated: imperial,scientific,engineering,kitchen,biology)
+--view <VIEWS>        Display views (comma-separated: scientific,adjust,strict)
 --sigfig              Enable significant figures tracking
---strict              Strict SI mode (bare SI output, no conversion)
 ```
 
 ### Unit sets
@@ -179,6 +188,57 @@ Additional units can be loaded with `--units`:
 - **kitchen** -- cup, tbs, tsp, floz, qt, pt
 - **biology** -- bp, kbp, Da, kDa, MDa
 
+### View modes
+
+Views control how results are displayed without affecting calculations. `adjust` is on by default.
+
+- **adjust** -- auto-prefix (km, mA, uF) and derived unit names (N, J, W)
+- **scientific** -- scientific notation for very large/small numbers
+- **strict** -- raw SI base units only (no prefix, no derived names)
+
+`adjust` and `strict` are mutually exclusive (enabling one disables the other).
+
+```bash
+# Auto-prefix (adjust is on by default)
+bbc -e '1500 [m]'
+# 1.5 [km]
+bbc -e '0.000025 [m]'
+# 25 [um]
+
+# Scientific notation for extreme values
+bbc --view scientific -e 'N_A'
+# 6.02214076e23 [mol^-1]
+
+# Strict: raw SI base units
+bbc --view strict -e '5 [km]'
+# 5000 [m]
+```
+
+At the REPL, use the `view` command to list, enable, or disable views:
+
+```
+> view
+active: adjust
+available: scientific strict
+> view scientific
+> view -adjust
+```
+
+### Runtime commands
+
+Manage units interactively during a REPL session:
+
+```
+> units                           # list loaded/available unit sets
+> units imperial                  # load a unit set
+> units +scientific               # load (same as above)
+> units -imperial                 # unload a unit set
+> unit ft                         # show info about a unit
+> unit smoot = 67 [in]
+> 364.4 [smoot] -> [m]
+620.135... [m]
+```
+
 ### Sigfig mode
 
 Tracks significant figures through calculations:
@@ -186,17 +246,6 @@ Tracks significant figures through calculations:
 ```bash
 bbc --sigfig -e '3.14 * 2.0'
 # 6.3  (2 sigfigs from 2.0)
-```
-
-### Strict SI mode
-
-Forces output in bare SI base units only:
-
-```bash
-bbc --strict -e '5 [mi]'
-# 8046.72 [m]
-bbc --strict -e '100 [km] -> [mi]'
-# error: strict mode: explicit conversion not allowed
 ```
 
 ## License
