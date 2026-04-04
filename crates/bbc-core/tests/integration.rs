@@ -1,4 +1,4 @@
-use bbc_core::env::Env;
+use bbc_core::env::{Env, View};
 use bbc_core::eval::Evaluator;
 
 fn eval(input: &str) -> String {
@@ -275,7 +275,6 @@ fn unknown_unit_error() {
 
 #[test]
 fn arrow_lowest_precedence() {
-    // -> should bind after the full expression: (10 [m/s] + 45 [km/min]) -> [mph]
     let result = eval("10 [m/s] + 45 [km/min] -> [mph]");
     assert!(result.contains("[mph]"));
     assert!(result.contains("1700"));
@@ -299,7 +298,6 @@ fn common_time_units() {
 
 #[test]
 fn common_temperature() {
-    // 25 degC -> degF should be ~77
     let result = eval("25 [degC] -> [degF]");
     assert!(result.contains("[degF]"));
     assert!(result.starts_with("77") || result.starts_with("76.99"));
@@ -328,7 +326,6 @@ fn imperial_unit_set() {
 fn scientific_unit_set() {
     let result = eval_with_units("1 [eV] -> [J]", &["scientific"]);
     assert!(result.contains("[J]"));
-    // 1.602e-19 displays as 0.00000000000000000016 at scale=20
     assert!(result.contains("0.00000000000000000016"));
 }
 
@@ -409,19 +406,16 @@ fn eval_sigfig(input: &str) -> String {
 
 #[test]
 fn sigfig_mul() {
-    // 3.14 has 3 sigfigs, 2.0 has 2 sigfigs -> result 2 sigfigs
     assert_eq!(eval_sigfig("3.14 * 2.0"), "6.3");
 }
 
 #[test]
 fn sigfig_exact_times_measured() {
-    // 42 is exact (integer), 2.0 has 2 sigfigs -> result 2 sigfigs
     assert_eq!(eval_sigfig("42 * 2.0"), "84");
 }
 
 #[test]
 fn sigfig_off_full_precision() {
-    // Without sigfig mode, full precision
     assert_eq!(eval("3.14 * 2.0"), "6.28");
 }
 
@@ -457,13 +451,13 @@ fn base_fraction_octal() {
     assert_eq!(eval("8x7.4"), "7.5");
 }
 
-// --- Strict SI mode ---
+// --- View system ---
 
 fn eval_strict(input: &str) -> String {
     let mut evaluator = Evaluator::new();
     let mut env = Env::new();
     bbc_core::register_constants(&mut env);
-    env.set_strict(true);
+    env.views_mut().add(View::Strict);
     bbc_core::evaluate_and_format(input, &mut env, &mut evaluator)
         .unwrap_or_else(|e| format!("error: {}", e))
 }
@@ -477,20 +471,97 @@ fn strict_bare_si() {
 
 #[test]
 fn strict_no_derived() {
-    // 9.8 N should show as m*kg*s^-2, not N
     let result = eval_strict("9.8 [m*s^-2]");
     assert!(result.contains("[m*s^-2]"));
 }
 
 #[test]
-fn strict_no_conversion() {
+fn strict_allows_conversion() {
+    // strict is now display-only, conversions work
     let result = eval_strict("100 [km] -> [mi]");
-    assert!(result.contains("strict mode"));
+    // in strict view, result is displayed in SI base units
+    assert!(result.contains("[m]"));
 }
 
 #[test]
 fn strict_decimal_only() {
     assert_eq!(eval_strict("16xFF"), "255");
+}
+
+// --- View commands ---
+
+#[test]
+fn view_list() {
+    let result = eval("view");
+    assert!(result.contains("active:"));
+    assert!(result.contains("adjust"));
+}
+
+#[test]
+fn view_enable_disable() {
+    let results = eval_with_env(&[
+        "view scientific",
+        "view",
+        "view -scientific",
+        "view",
+    ]);
+    assert!(results[0].contains("enabled view 'scientific'"));
+    let active_line_1: &str = results[1].lines().next().unwrap();
+    assert!(active_line_1.contains("scientific"));
+    assert!(active_line_1.contains("adjust"));
+    assert!(results[2].contains("disabled view 'scientific'"));
+    let active_line_2: &str = results[3].lines().next().unwrap();
+    assert!(!active_line_2.contains("scientific"));
+}
+
+#[test]
+fn view_conflict() {
+    // enabling strict auto-disables adjust
+    let results = eval_with_env(&[
+        "view strict",
+        "view",
+    ]);
+    assert!(results[0].contains("enabled view 'strict'"));
+    let active_line: &str = results[1].lines().next().unwrap();
+    assert!(active_line.contains("strict"));
+    assert!(!active_line.contains("adjust"));
+}
+
+#[test]
+fn view_scientific_small() {
+    let mut evaluator = Evaluator::new();
+    let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
+    env.views_mut().add(View::Scientific);
+    let result = bbc_core::evaluate_and_format("0.001", &mut env, &mut evaluator).unwrap();
+    assert!(result.contains("e-3") || result.contains("e-03"), "expected scientific for 0.001, got: {}", result);
+}
+
+#[test]
+fn view_scientific_large() {
+    let mut evaluator = Evaluator::new();
+    let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
+    env.views_mut().add(View::Scientific);
+    let result = bbc_core::evaluate_and_format("1500", &mut env, &mut evaluator).unwrap();
+    assert!(result.contains("e3") || result.contains("e+3") || result.contains("e03"), "expected scientific for 1500, got: {}", result);
+}
+
+#[test]
+fn view_scientific_normal_range() {
+    let mut evaluator = Evaluator::new();
+    let mut env = Env::new();
+    bbc_core::register_constants(&mut env);
+    env.views_mut().add(View::Scientific);
+    let result = bbc_core::evaluate_and_format("42", &mut env, &mut evaluator).unwrap();
+    assert_eq!(result, "42");
+}
+
+#[test]
+fn view_adjust_prefix() {
+    // adjust is on by default, 1500 [m] should become 1.5 [km]
+    let result = eval("1500 [m]");
+    assert!(result.contains("1.5") && result.contains("[km]"), "expected 1.5 [km], got: {}", result);
 }
 
 // --- units command ---
@@ -583,6 +654,5 @@ fn unit_define_idempotent() {
     ]);
     assert!(results[0].contains("defined"));
     assert!(results[1].contains("defined"));
-    // After redefining bread=2, 1 [bread] = 2 SI, displayed as 1 [bread]
     assert!(results[2].contains("[bread]"));
 }

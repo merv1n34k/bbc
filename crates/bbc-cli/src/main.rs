@@ -1,6 +1,6 @@
 mod repl;
 
-use bbc_core::env::Env;
+use bbc_core::env::{Env, View};
 use bbc_core::eval::Evaluator;
 use clap::Parser;
 use std::io::{self, BufRead};
@@ -32,9 +32,9 @@ struct Cli {
     #[arg(long)]
     sigfig: bool,
 
-    /// Strict SI mode: output in bare SI units only, no conversion
-    #[arg(long)]
-    strict: bool,
+    /// View modes (comma-separated: scientific,adjust,strict)
+    #[arg(long, value_delimiter = ',')]
+    view: Vec<String>,
 }
 
 fn main() {
@@ -55,8 +55,12 @@ fn main() {
     if cli.sigfig {
         env.set_sigfig(true);
     }
-    if cli.strict {
-        env.set_strict(true);
+    for view_name in &cli.view {
+        if let Some(v) = View::parse(view_name) {
+            env.views_mut().add(v);
+        } else {
+            eprintln!("warning: unknown view '{}', available: scientific, adjust, strict", view_name);
+        }
     }
     if cli.obase != 10 {
         let _ = env.set_var("obase".into(), bbc_core::value::Value::from_int(cli.obase as i64));
