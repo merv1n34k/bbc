@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BBC - Better BC</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#quote {
+  text-align: center;
+  color: #7a7a9e;
+  font-style: italic;
+  font-size: 0.85rem;
+  max-width: 600px;
+  min-height: 2.5em;
+  margin-bottom: 1.5rem;
+  transition: opacity 0.6s ease;
+}
+#repl-container {
+  width: 100%;
+  max-width: 700px;
+  background: #16213e;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+#output {
+  max-height: 60vh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.line-input { color: #64ffda; }
+.line-output { color: #e0e0e0; }
+.line-error { color: #ff6b6b; }
+#input-line {
+  display: flex;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+#prompt {
+  color: #64ffda;
+  margin-right: 0.5ch;
+  user-select: none;
+}
+#input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #64ffda;
+  font-family: inherit;
+  font-size: 0.9rem;
+  caret-color: #64ffda;
+}
+#hints {
+  text-align: center;
+  color: #4a4a6e;
+  font-size: 0.75rem;
+  margin-top: 1.5rem;
+  max-width: 700px;
+  line-height: 1.8;
+}
+#hints span {
+  display: inline-block;
+  background: #16213e;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin: 0.15rem;
+}
+footer {
+  margin-top: 2rem;
+  text-align: center;
+  color: #4a4a6e;
+  font-size: 0.7rem;
+}
+footer a { color: #5a5a8e; text-decoration: none; }
+footer a:hover { color: #7a7aae; }
+</style>
+</head>
+<body>
+
+<div id="quote"></div>
+
+<div id="repl-container">
+  <div id="output"></div>
+  <div id="input-line">
+    <span id="prompt">&gt;</span>
+    <input id="input" type="text" autofocus autocomplete="off" spellcheck="false">
+  </div>
+</div>
+
+<div id="hints">
+  Try:
+  <span>1/3 * 3</span>
+  <span>5 [kg] * 9.8 [m*s^-2]</span>
+  <span>100 [km] -&gt; [mi]</span>
+  <span>16xFF &gt;&gt; 2 -&gt; 16x</span>
+  <span>sin(pi/4)</span>
+  <span>c</span>
+  <span>units imperial</span>
+  <span>view scientific</span>
+</div>
+
+<footer>MIT License | <a href="https://github.com/merv1n34k/bbc">GitHub</a></footer>
+
+<script type="module">
+import init, { WasmEvaluator } from './pkg/bbc_wasm.js';
+
+const quotes = [
+  ['"Mathematics is the queen of the sciences."', 'Gauss'],
+  ['"Pure mathematics is, in its way, the poetry of logical ideas."', 'Einstein'],
+  ['"The only way to learn mathematics is to do mathematics."', 'Halmos'],
+  ['"Do not worry about your difficulties in mathematics. I can assure you mine are still greater."', 'Einstein'],
+  ['"The beauty of a living thing is not the atoms that go into it, but the way those atoms are put together."', 'Carl Sagan'],
+  ['"Mathematics, rightly viewed, possesses not only truth, but supreme beauty."', 'Russell'],
+];
+
+const quoteEl = document.getElementById('quote');
+let quoteIdx = Math.floor(Math.random() * quotes.length);
+
+function showQuote() {
+  quoteEl.style.opacity = '0';
+  setTimeout(() => {
+    const [text, author] = quotes[quoteIdx];
+    quoteEl.textContent = text + ' -- ' + author;
+    quoteEl.style.opacity = '1';
+    quoteIdx = (quoteIdx + 1) % quotes.length;
+  }, 600);
+}
+showQuote();
+setInterval(showQuote, 15000);
+
+async function main() {
+  await init();
+  let evaluator = new WasmEvaluator();
+
+  const output = document.getElementById('output');
+  const input = document.getElementById('input');
+  const history = [];
+  let historyIdx = -1;
+
+  function appendLine(text, cls) {
+    const line = document.createElement('div');
+    line.className = cls;
+    line.textContent = text;
+    output.appendChild(line);
+    output.scrollTop = output.scrollHeight;
+  }
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const expr = input.value.trim();
+      input.value = '';
+      if (!expr) return;
+
+      history.push(expr);
+      historyIdx = history.length;
+
+      if (expr === 'exit' || expr === 'quit') {
+        appendLine('> ' + expr, 'line-input');
+        appendLine('(session reset)', 'line-error');
+        output.innerHTML = '';
+        evaluator = new WasmEvaluator();
+        return;
+      }
+
+      appendLine('> ' + expr, 'line-input');
+      const result = evaluator.eval(expr);
+      const cls = result.startsWith('error:') ? 'line-error' : 'line-output';
+      appendLine(result, cls);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (historyIdx > 0) {
+        historyIdx--;
+        input.value = history[historyIdx];
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIdx < history.length - 1) {
+        historyIdx++;
+        input.value = history[historyIdx];
+      } else {
+        historyIdx = history.length;
+        input.value = '';
+      }
+    }
+  });
+
+  document.addEventListener('click', () => input.focus());
+}
+
+main();
+</script>
+</body>
+</html>

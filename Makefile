@@ -1,4 +1,4 @@
-.PHONY: setup dev build test test-all lint fmt clean
+.PHONY: setup dev build test test-all lint fmt clean wasm
 
 setup:
 	cargo build
@@ -23,3 +23,6 @@ fmt:
 
 clean:
 	cargo clean
+
+wasm:
+	wasm-pack build --target web crates/bbc-wasm

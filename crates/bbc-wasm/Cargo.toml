@@ -1,0 +1,12 @@
+[package]
+name = "bbc-wasm"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bbc-core = { workspace = true }
+bbc-bitwise = { workspace = true }
+wasm-bindgen = "0.2"
