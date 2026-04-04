@@ -2,10 +2,10 @@ use malachite::Rational;
 use malachite_base::num::conversion::traits::{IsInteger, RoundingFrom};
 use malachite_base::rounding_modes::RoundingMode;
 
+use crate::env::{View, ViewSet};
 use crate::units::UnitRegistry;
 use crate::value::{Quantity, Value};
 
-/// Format a rational number in the given output base with the given decimal precision.
 pub fn format_rational(val: &Rational, obase: u32, scale: u32) -> String {
     if obase == 10 {
         format_rational_base10(val, scale)
@@ -129,10 +129,50 @@ fn digit_char(d: u8) -> char {
     }
 }
 
-/// Format a quantity for display, using the unit registry to find derived names
-/// and best prefixes.
-pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegistry) -> String {
+pub fn format_scientific(val: f64, scale: u32) -> String {
+    if val == 0.0 {
+        return "0".to_string();
+    }
+    let abs = val.abs();
+    let exp = abs.log10().floor() as i32;
+    let mantissa = val / 10f64.powi(exp);
+    let prec = (scale as usize).min(15).max(1);
+    let m_str = format!("{:.prec$}", mantissa, prec = prec);
+    let m_str = m_str.trim_end_matches('0');
+    let m_str = m_str.trim_end_matches('.');
+    if exp == 0 {
+        m_str.to_string()
+    } else {
+        format!("{}e{}", m_str, exp)
+    }
+}
+
+fn needs_scientific(val: f64) -> bool {
+    if val == 0.0 {
+        return false;
+    }
+    let abs = val.abs();
+    abs < 0.01 || abs >= 999.0
+}
+
+pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegistry, views: &ViewSet) -> String {
     let effective_base = q.display_base.unwrap_or(obase);
+    let use_strict = views.has(View::Strict);
+    let use_adjust = views.has(View::Adjust);
+    let use_scientific = views.has(View::Scientific);
+
+    // Strict view: force raw SI base units
+    if use_strict {
+        let num_str = format_with_sigfigs(&q.val, 10, scale, q.sigfigs);
+        if q.dim.is_dimensionless() {
+            return maybe_scientific_str(&q.val, &num_str, scale, use_scientific);
+        }
+        let formatted = format!("{} [{}]", num_str, q.dim);
+        if use_scientific {
+            return apply_scientific_to_formatted(&q.val, &formatted, scale);
+        }
+        return formatted;
+    }
 
     // If quantity has an explicit unit label, use it
     if let Some(ref label) = q.unit {
@@ -140,13 +180,24 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
         if label.offset != Rational::from(0) {
             let display_val = (&q.val - &label.offset) / &label.scale;
             let num_str = format_with_sigfigs(&display_val, effective_base, scale, q.sigfigs);
-            return format!("{} [{}]", num_str, label.name);
+            let formatted = format!("{} [{}]", num_str, label.name);
+            if use_scientific {
+                return apply_scientific_to_formatted(&display_val, &formatted, scale);
+            }
+            return formatted;
         }
 
-        // Auto-prefix: for non-pinned units (not from -> conversion),
-        // find best SI prefix for the display value
-        if !label.pinned {
+        // Auto-prefix: for non-pinned units when adjust is on
+        if use_adjust && !label.pinned {
             if let Some(result) = auto_prefix_unit(&q.val, &label.name, scale, registry) {
+                if use_scientific {
+                    let display_val = &q.val / &label.scale;
+                    let (approx, _) = f64::rounding_from(&display_val, RoundingMode::Nearest);
+                    if needs_scientific(approx) {
+                        let sci_num = format_scientific(approx, scale);
+                        return format!("{} [{}]", sci_num, label.name);
+                    }
+                }
                 return result;
             }
         }
@@ -154,45 +205,81 @@ pub fn format_quantity(q: &Quantity, obase: u32, scale: u32, registry: &UnitRegi
         // Fallback: display in user's original unit
         let display_val = (&q.val - &label.offset) / &label.scale;
         let num_str = format_with_sigfigs(&display_val, effective_base, scale, q.sigfigs);
-        return format!("{} [{}]", num_str, label.name);
+        let formatted = format!("{} [{}]", num_str, label.name);
+        if use_scientific {
+            return apply_scientific_to_formatted(&display_val, &formatted, scale);
+        }
+        return formatted;
     }
 
     let num_str = format_with_sigfigs(&q.val, effective_base, scale, q.sigfigs);
 
     if q.dim.is_dimensionless() {
-        return num_str;
+        return maybe_scientific_str(&q.val, &num_str, scale, use_scientific);
     }
 
-    // Try to find a derived unit name
-    if let Some(name) = registry.find_derived_name(q.dim) {
-        let (approx, _) = f64::rounding_from(&q.val, RoundingMode::Nearest);
-        let (prefix, display_val) = UnitRegistry::best_prefix(approx);
-        if !prefix.is_empty() {
-            return format!("{} [{}{}]", format_f64_trimmed(display_val, scale), prefix, name);
+    // Try to find a derived unit name (only when adjust is on)
+    if use_adjust {
+        if let Some(name) = registry.find_derived_name(q.dim) {
+            let (approx, _) = f64::rounding_from(&q.val, RoundingMode::Nearest);
+            let (prefix, display_val) = UnitRegistry::best_prefix(approx);
+            if !prefix.is_empty() {
+                let formatted = format!("{} [{}{}]", format_f64_trimmed(display_val, scale), prefix, name);
+                if use_scientific && needs_scientific(display_val) {
+                    let sci_num = format_scientific(display_val, scale);
+                    return format!("{} [{}{}]", sci_num, prefix, name);
+                }
+                return formatted;
+            }
+            let formatted = format!("{} [{}]", num_str, name);
+            if use_scientific {
+                return apply_scientific_to_formatted(&q.val, &formatted, scale);
+            }
+            return formatted;
         }
-        return format!("{} [{}]", num_str, name);
     }
 
     // Fall back to raw dimension display
-    format!("{} [{}]", num_str, q.dim)
+    let formatted = format!("{} [{}]", num_str, q.dim);
+    if use_scientific {
+        return apply_scientific_to_formatted(&q.val, &formatted, scale);
+    }
+    formatted
 }
 
-/// Try to auto-prefix a unit label for better readability.
-/// Returns formatted string like "1.5 [km]" or "100 [ng]", or None if
-/// the unit isn't prefixable.
+fn maybe_scientific_str(val: &Rational, num_str: &str, scale: u32, use_scientific: bool) -> String {
+    if use_scientific {
+        let (approx, _) = f64::rounding_from(val, RoundingMode::Nearest);
+        if needs_scientific(approx) {
+            return format_scientific(approx, scale);
+        }
+    }
+    num_str.to_string()
+}
+
+fn apply_scientific_to_formatted(val: &Rational, formatted: &str, scale: u32) -> String {
+    let (approx, _) = f64::rounding_from(val, RoundingMode::Nearest);
+    if needs_scientific(approx) {
+        let sci_num = format_scientific(approx, scale);
+        // Replace the numeric part before the first ' ['
+        if let Some(bracket_pos) = formatted.find(" [") {
+            return format!("{}{}", sci_num, &formatted[bracket_pos..]);
+        }
+    }
+    formatted.to_string()
+}
+
 fn auto_prefix_unit(
     si_val: &Rational,
     label_name: &str,
     scale: u32,
     registry: &UnitRegistry,
 ) -> Option<String> {
-    // Parse the label into parts: "m*s^-2" -> [("m",1), ("s",-2)]
     let parts = parse_label_parts(label_name);
     if parts.is_empty() {
         return None;
     }
 
-    // Find the first prefixable part (has a base unit in the registry)
     let prefix_idx = parts.iter().position(|(name, _exp)| {
         registry.base_unit_name(name).is_some()
     })?;
@@ -201,9 +288,6 @@ fn auto_prefix_unit(
     let (base_name, _existing_prefix_exp) = registry.base_unit_name(part_name)?;
     let (_base_dim, base_scale, _) = registry.resolve(base_name)?;
 
-    // Compute value in base unit of the prefixable component
-    // For compound units, we divide SI value by scales of all OTHER parts
-    // to isolate the prefixable part's contribution
     let mut other_scale = 1.0;
     for (i, (name, exp)) in parts.iter().enumerate() {
         if i == prefix_idx {
@@ -219,7 +303,6 @@ fn auto_prefix_unit(
     let (approx, _) = f64::rounding_from(&val_in_base, RoundingMode::Nearest);
     let (prefix, display_val) = UnitRegistry::best_prefix(approx);
 
-    // Rebuild the unit label with the new prefix on the target part
     let new_parts: Vec<String> = parts
         .iter()
         .enumerate()
@@ -241,7 +324,6 @@ fn auto_prefix_unit(
     Some(format!("{} [{}]", format_f64_trimmed(display_val, scale), unit_str))
 }
 
-/// Parse a unit label string like "m*s^-2" into (name, exponent) pairs.
 fn parse_label_parts(label: &str) -> Vec<(&str, i32)> {
     label
         .split('*')
@@ -279,8 +361,7 @@ fn format_f64_sigfigs(val: f64, sigfigs: u32) -> String {
     if decimal_places == 0 {
         format!("{}", rounded as i64)
     } else {
-        let s = format!("{:.prec$}", rounded, prec = decimal_places);
-        s
+        format!("{:.prec$}", rounded, prec = decimal_places)
     }
 }
 
@@ -291,32 +372,14 @@ fn format_f64_trimmed(val: f64, scale: u32) -> String {
     s.to_string()
 }
 
-/// Format a value for display
-pub fn format_value(val: &Value, obase: u32, scale: u32, registry: &UnitRegistry) -> String {
+pub fn format_value(val: &Value, obase: u32, scale: u32, registry: &UnitRegistry, views: &ViewSet) -> String {
     match val {
-        Value::Quantity(q) => format_quantity(q, obase, scale, registry),
+        Value::Quantity(q) => format_quantity(q, obase, scale, registry, views),
         Value::Bool(b) => b.to_string(),
         Value::String(s) => s.clone(),
     }
 }
 
-pub fn format_value_strict(val: &Value, scale: u32) -> String {
-    match val {
-        Value::Quantity(q) => {
-            let num_str = format_with_sigfigs(&q.val, 10, scale, q.sigfigs);
-            if q.dim.is_dimensionless() {
-                num_str
-            } else {
-                format!("{} [{}]", num_str, q.dim)
-            }
-        }
-        Value::Bool(b) => b.to_string(),
-        Value::String(s) => s.clone(),
-    }
-}
-
-/// Format a quantity with an explicit target unit for `->` conversion display.
-/// Divides the SI value by target_scale using exact rational arithmetic.
 pub fn format_quantity_in_unit(
     q: &Quantity,
     target_unit: &str,
@@ -362,5 +425,15 @@ mod tests {
     fn format_negative() {
         let val = Rational::from(-42);
         assert_eq!(format_rational(&val, 10, 20), "-42");
+    }
+
+    #[test]
+    fn scientific_notation() {
+        let s = format_scientific(1500.0, 6);
+        assert_eq!(s, "1.5e3");
+        let s = format_scientific(0.001, 6);
+        assert_eq!(s, "1e-3");
+        let s = format_scientific(6.626e-34, 6);
+        assert!(s.starts_with("6.626e-34"));
     }
 }

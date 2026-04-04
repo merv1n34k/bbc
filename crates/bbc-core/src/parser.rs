@@ -152,6 +152,11 @@ impl Parser {
                 let action = self.parse_unit_action()?;
                 Ok(Expr::UnitCmd { action })
             }
+            Token::View => {
+                self.advance();
+                let action = self.parse_view_action()?;
+                Ok(Expr::ViewCmd { action })
+            }
             Token::Const => {
                 self.advance();
                 if let Token::Ident(name) = self.peek().clone() {
@@ -292,6 +297,39 @@ impl Parser {
             msg: "expected unit name after 'unit'".to_string(),
             span: Some(self.peek_span().clone()),
         })
+    }
+
+    fn parse_view_action(&mut self) -> Result<ViewCmdAction, Error> {
+        if self.at_eof() {
+            return Ok(ViewCmdAction::List);
+        }
+        if matches!(self.peek(), Token::Minus) {
+            self.advance();
+            if let Token::Ident(name) = self.peek().clone() {
+                self.advance();
+                return Ok(ViewCmdAction::Disable(name));
+            }
+            return Err(Error::ParseError {
+                msg: "expected view name after '-'".to_string(),
+                span: Some(self.peek_span().clone()),
+            });
+        }
+        if matches!(self.peek(), Token::Plus) {
+            self.advance();
+            if let Token::Ident(name) = self.peek().clone() {
+                self.advance();
+                return Ok(ViewCmdAction::Enable(name));
+            }
+            return Err(Error::ParseError {
+                msg: "expected view name after '+'".to_string(),
+                span: Some(self.peek_span().clone()),
+            });
+        }
+        if let Token::Ident(name) = self.peek().clone() {
+            self.advance();
+            return Ok(ViewCmdAction::Enable(name));
+        }
+        Ok(ViewCmdAction::List)
     }
 
     fn parse_args(&mut self) -> Result<Vec<Expr>, Error> {

@@ -59,6 +59,9 @@ pub enum Expr {
 
     /// unit command: unit x = expr, unit x, unit -x
     UnitCmd { action: UnitCmdAction },
+
+    /// view command: view, view scientific, view +adjust, view -scientific
+    ViewCmd { action: ViewCmdAction },
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +76,13 @@ pub enum UnitCmdAction {
     Define { name: String, expr: Box<Expr> },
     Inspect(String),
     Remove(String),
+}
+
+#[derive(Debug, Clone)]
+pub enum ViewCmdAction {
+    List,
+    Enable(String),
+    Disable(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

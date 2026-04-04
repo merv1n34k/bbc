@@ -69,12 +69,6 @@ impl Evaluator {
             }
 
             Expr::Convert { expr, target, base } => {
-                if env.strict_mode() {
-                    return Err(Error::TypeError {
-                        msg: "strict mode: explicit conversion not allowed".to_string(),
-                        span: None,
-                    });
-                }
                 let val = self.eval(expr, env)?;
                 let mut result = if let Some(target) = target {
                     self.convert_unit(val, target, env)?
@@ -176,6 +170,64 @@ impl Evaluator {
                                 name: name.clone(),
                                 span: None,
                             })
+                        }
+                    }
+                }
+            }
+
+            Expr::ViewCmd { action } => {
+                use crate::ast::ViewCmdAction;
+                use crate::env::View;
+                match action {
+                    ViewCmdAction::List => {
+                        let active: Vec<&str> = env.views().list().iter().map(|v| v.name()).collect();
+                        let all_views = View::all();
+                        let inactive: Vec<&str> = all_views.iter()
+                            .filter(|v| !env.views().has(**v))
+                            .map(|v| v.name())
+                            .collect();
+                        let mut out = String::from("active:");
+                        if active.is_empty() {
+                            out.push_str(" (none)");
+                        } else {
+                            for s in &active {
+                                out.push(' ');
+                                out.push_str(s);
+                            }
+                        }
+                        out.push_str("\navailable:");
+                        if inactive.is_empty() {
+                            out.push_str(" (none)");
+                        } else {
+                            for s in &inactive {
+                                out.push(' ');
+                                out.push_str(s);
+                            }
+                        }
+                        Ok(Value::String(out))
+                    }
+                    ViewCmdAction::Enable(name) => {
+                        match View::parse(name) {
+                            Some(v) => {
+                                env.views_mut().add(v);
+                                Ok(Value::String(format!("enabled view '{}'", name)))
+                            }
+                            None => Err(Error::TypeError {
+                                msg: format!("unknown view '{}', available: scientific, adjust, strict", name),
+                                span: None,
+                            }),
+                        }
+                    }
+                    ViewCmdAction::Disable(name) => {
+                        match View::parse(name) {
+                            Some(v) => {
+                                env.views_mut().remove(v);
+                                Ok(Value::String(format!("disabled view '{}'", name)))
+                            }
+                            None => Err(Error::TypeError {
+                                msg: format!("unknown view '{}', available: scientific, adjust, strict", name),
+                                span: None,
+                            }),
                         }
                     }
                 }

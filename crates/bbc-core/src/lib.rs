@@ -32,15 +32,10 @@ pub fn evaluate(input: &str, env: &mut Env, evaluator: &mut Evaluator) -> Result
 pub fn evaluate_and_format(input: &str, env: &mut Env, evaluator: &mut Evaluator) -> Result<String, Error> {
     let val = evaluate(input, env, evaluator)?;
     let scale = env.get_scale();
-    if env.strict_mode() {
-        Ok(format::format_value_strict(&val, scale))
-    } else {
-        let obase = env.get_obase();
-        Ok(format::format_value(&val, obase, scale, &evaluator.registry))
-    }
+    let obase = env.get_obase();
+    Ok(format::format_value(&val, obase, scale, &evaluator.registry, env.views()))
 }
 
-/// Load all constants from TOML data files and register them as immutable in Env.
 pub fn register_constants(env: &mut Env) {
     for c in UnitRegistry::load_constants() {
         let val = Rational::try_from(c.value)
